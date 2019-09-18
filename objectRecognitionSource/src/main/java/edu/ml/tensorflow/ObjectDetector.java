@@ -12,7 +12,6 @@ import org.tensorflow.Graph;
 import org.tensorflow.Output;
 import org.tensorflow.Session;
 import org.tensorflow.Tensor;
-import io.vantiq.client.Vantiq;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -45,17 +44,16 @@ public class ObjectDetector {
     private static SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd--HH-mm-ss");
     
     // Getting meta config options for YOLO Processor
-    public MetaBasedConfig metaConfigOptions = new MetaBasedConfig();
+    public NeuralNetConfig neuralNetConfig;
+
     private int frameSize;
-    
     private ImageUtil imageUtil;
     private int saveRate = 0;
     private Boolean labelImage;
     private int frameCount = 0;
     int fileCount = 0; // Used for saving files with same name
     private float threshold;
-    private Vantiq vantiq = null;
-    private String sourceName = null;
+    private String sourceName;
     private double[] anchorArray;
     private Map<String,Object> metaFileMap;    
     
@@ -72,39 +70,42 @@ public class ObjectDetector {
     /**
      * Initializes the ObjectDetector with the given graph and and labels.
      * <br>Edited to initialize and save the graph for reuse, and allow the files to be specified dynamically.
-     * @param thresh        The threshold of confidence used by the Yolo Neural Network when deciding whether to save 
-     *                      a recognition. 
-     * @param graphFile     The location of a proto buffer file describing the YOLO net 
-     * @param labelFile     (DEPRECATED) The location of the labels for the given net.
-     * @param metaFile      The location of the meta file used to retrieve anchors and labels if a labelFile is not provided.
-     * @param anchorArray   The list of anchor pairs used by the YOLOClassifier to label recognitions.
-     * @param imageUtil     The instance of the ImageUtil class used to save images. Either initialized, or set to null.
-     * @param outputDir     The directory to which images will be saved.
-     * @param labelImage    The boolean flag signifying if images should be saved with or without bounding boxes. If true,
-     *                      the frames will be saved with bounding boxes, and vice versa.     
-     * @param saveRate      The rate at which images will be saved, once per every saveRate frames. Non-positive values are
-     *                      functionally equivalent to 1. If outputDir is null does nothing.
-     * @param vantiq        The Vantiq variable used to connect to the VANTIQ SDK. Either authenticated, or set to null.
-     * @param sourceName    The name of the VANTIQ Source
+     * @param neuralNetConfig   An initialized config class containing the following config values:
+     *         * thresh         The threshold of confidence used by the Yolo Neural Network when deciding whether to save
+     *                          a recognition.
+     *         * graphFile      The location of a proto buffer file describing the YOLO net
+     *         * labelFile      (DEPRECATED) The location of the labels for the given net.
+     *         * metaFile       The location of the meta file used to retrieve anchors and labels if a labelFile is not provided.
+     *         * anchorArray    The list of anchor pairs used by the YOLOClassifier to label recognitions.
+     *         * imageUtil      The instance of the ImageUtil class used to save images. Either initialized, or set to null.
+     *         * outputDir      The directory to which images will be saved.
+     *         * labelImage     The boolean flag signifying if images should be saved with or without bounding boxes. If true,
+     *                          the frames will be saved with bounding boxes, and vice versa.
+     *         * saveRate       The rate at which images will be saved, once per every saveRate frames. Non-positive values are
+     *                          functionally equivalent to 1. If outputDir is null does nothing.
+     *         * vantiq         The Vantiq variable used to connect to the VANTIQ SDK. Either authenticated, or set to null.
+     *         * sourceName     The name of the VANTIQ Source
      */
-    public ObjectDetector(float thresh, String graphFile, String labelFile, String metaFile, double[] anchorArray, ImageUtil imageUtil, String outputDir, 
-            Boolean labelImage, int saveRate, Vantiq vantiq, String sourceName) {
+    public ObjectDetector(NeuralNetConfig neuralNetConfig) {
         try {
+            String graphFile = neuralNetConfig.getPbFile();
             graph_def = IOUtil.readAllBytesOrExit(graphFile);
             // Parse meta file if it exists, and get all general information we need
+            String metaFile = neuralNetConfig.getMetaFile();
             if (metaFile != null) {
                 parseMetaFile(metaFile);
                 int frameHeight = (int) ((Map<String,Object>) metaFileMap.get("net")).get("height");
                 int frameWidth = (int) ((Map<String,Object>) metaFileMap.get("net")).get("width");
                 // Check that meta file has appropriate frame size, and that user has not overwritten frame size in Config
-                if (frameHeight == frameWidth && frameHeight % 32 == 0 && metaConfigOptions.useMetaIfAvailable) {
+                if (frameHeight == frameWidth && frameHeight % 32 == 0 && neuralNetConfig.useMetaIfAvailable) {
                     // Set config value to the .meta file's frame size
-                    metaConfigOptions.frameSize = frameHeight;
+                    neuralNetConfig.setFrameSize(frameHeight);
                 }
             }
-            this.frameSize = metaConfigOptions.frameSize;
+            frameSize = neuralNetConfig.getFrameSize();
 
             // If label file exists, use it. Otherwise, use the meta file's labels.
+            String labelFile = neuralNetConfig.getLabelsFile();
             if (labelFile != null) {
                 labels = IOUtil.readAllLinesOrExit(labelFile);
             } else if (metaFile != null) {
@@ -112,12 +113,12 @@ public class ObjectDetector {
             }
             // If anchor config option was used, override the anchors. Otherwise, use meta file anchors if they exist.
             // If neither exist, then default anchor values will be used.
-            if (anchorArray != null) {
-                this.anchorArray = anchorArray;
+            if (neuralNetConfig.getAnchorArray() != null) {
+                anchorArray = neuralNetConfig.getAnchorArray();
             } else if (metaFile != null) {
                 ArrayList anchorList = (ArrayList) metaFileMap.get("anchors");
                 if (anchorList != null) {
-                    this.anchorArray = new double[anchorList.size()];
+                    anchorArray = new double[anchorList.size()];
                     for (int i = 0; i < anchorList.size(); i++) {
                         if (anchorList.get(i) instanceof Integer) {
                             this.anchorArray[i] = (double) ((Integer) anchorList.get(i));
@@ -127,13 +128,15 @@ public class ObjectDetector {
                     }
                 }
             }
-            this.imageUtil = imageUtil;
-            imageUtil.frameSize = this.frameSize;
-            this.vantiq = vantiq;
-            this.labelImage = labelImage;
-            this.sourceName = sourceName;
-            if (imageUtil.saveImage) {
-                this.saveRate = saveRate;
+
+            // Initialize ImageUtil with NeuralNetConfig
+            imageUtil = new ImageUtil(neuralNetConfig);
+
+            labelImage = neuralNetConfig.isLabelImage();
+            sourceName = neuralNetConfig.getSourceName();
+
+            if (neuralNetConfig.isSaveImage()) {
+                saveRate = neuralNetConfig.getSaveRate();
                 frameCount = saveRate;
             }
         } catch (ServiceException ex) {
@@ -145,14 +148,16 @@ public class ObjectDetector {
         } catch (IOException ex) {
             throw new IllegalArgumentException("Problem reading one of the model files.", ex);
         }
-        
-        threshold = thresh;
+
+        threshold = neuralNetConfig.getThreshold();
         
         yoloGraph = createYoloGraph();
         yoloSession = new Session(yoloGraph);
         
         normalizerGraph = createNormalizerGraph();
         normalizerSession = new Session(normalizerGraph);
+
+        this.neuralNetConfig = neuralNetConfig;
     }
 
     /**
@@ -195,34 +200,31 @@ public class ObjectDetector {
     /**
      * Detect objects on the given image
      * <br>Edited to return the results as a map and conditionally save the image
-     * @param image         The image in jpeg format
-     * @param outputDir     The directory to which the image should be written, (under current working directory unless
-     *                      otherwise specified). If saveImage is null, no image is saved.
-     * @param fileName      The name of the file to which the image is saved, with ".jpg" appended if necessary. If
-     *                      {@code outputDir} is null and no default exists, no image is saved. If {@code fileName} is null
-     *                      and {@code outputDir} is non-null, then the file is saved as
-     *                      "&lt;year&gt;-&lt;month&gt;-&lt;day&gt;--&lt;hour&gt;-&lt;minute&gt;-&lt;second&gt;.jpg"
-     * @param vantiq        The Vantiq variable used to connect to the VANTIQ SDK. Either authenticated, or set to null.
-     * @param uploadAsImage The boolean flag used to specify if images should be uploaded to VANTIQ as Documents or VANTIQ Images
-     * @return              A List of Maps, each of which has a {@code label} stating the type of the object identified, a
-     *                      {@code confidence} specifying on a scale of 0-1 how confident the neural net is that the
-     *                      identification is accurate, and a {@code location} containing the coordinates for the
-     *                      {@code top},{@code left}, {@code bottom}, and {@code right} edges of the bounding box for
-     *                      the object.
+     * @param image             The image in jpeg format
+     * @param neuralNetConfig   An initialized config class containing the following config values:
+     *      * outputDir         The directory to which the image should be written, (under current working directory unless
+     *                          otherwise specified). If saveImage is null, no image is saved.
+     *      * fileName          The name of the file to which the image is saved, with ".jpg" appended if necessary. If
+     *                          {@code outputDir} is null and no default exists, no image is saved. If {@code fileName} is null
+     *                          and {@code outputDir} is non-null, then the file is saved as
+     *                          "&lt;year&gt;-&lt;month&gt;-&lt;day&gt;--&lt;hour&gt;-&lt;minute&gt;-&lt;second&gt;.jpg"
+     *      * vantiq            The Vantiq variable used to connect to the VANTIQ SDK. Either authenticated, or set to null.
+     *      * uploadAsImage     The boolean flag used to specify if images should be uploaded to VANTIQ as Documents or VANTIQ Images
+     * @return                  A List of Maps, each of which has a {@code label} stating the type of the object identified, a
+     *                          {@code confidence} specifying on a scale of 0-1 how confident the neural net is that the
+     *                          identification is accurate, and a {@code location} containing the coordinates for the
+     *                          {@code top},{@code left}, {@code bottom}, and {@code right} edges of the bounding box for
+     *                          the object.
      */
-    public List<Map<String, ?>> detect(final byte[] image, String outputDir, String fileName, Vantiq vantiq, boolean uploadAsImage) {
+    public List<Map<String, ?>> detect(final byte[] image, NeuralNetConfig neuralNetConfig) {
         try (Tensor<Float> normalizedImage = normalizeImage(image)) {
             List<Recognition> recognitions = YOLOClassifier.getInstance(threshold, anchorArray, frameSize).classifyImage(executeYOLOGraph(normalizedImage), labels);
             BufferedImage buffImage = imageUtil.createImageFromBytes(image);
             
             // Saves an image if requested
-            if (outputDir != null || vantiq != null || this.imageUtil.saveImage) {
-                ImageUtil imageUtil = new ImageUtil();
-                imageUtil.outputDir = outputDir;
-                imageUtil.vantiq = vantiq;
-                imageUtil.sourceName = sourceName;
-                imageUtil.frameSize = frameSize;
-                imageUtil.uploadAsImage = uploadAsImage;
+            if (neuralNetConfig.isSaveImage() || imageUtil.saveImage) {
+                ImageUtil imageUtil = new ImageUtil(neuralNetConfig);
+                String fileName = neuralNetConfig.getFileName();
                 lastFilename = fileName;
                 if (labelImage) {
                     buffImage = imageUtil.labelImage(buffImage, recognitions);

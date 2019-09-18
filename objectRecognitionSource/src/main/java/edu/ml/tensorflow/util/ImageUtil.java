@@ -1,5 +1,6 @@
 package edu.ml.tensorflow.util;
 
+import edu.ml.tensorflow.NeuralNetConfig;
 import edu.ml.tensorflow.model.BoxPosition;
 import edu.ml.tensorflow.model.Recognition;
 import io.vantiq.client.BaseResponseHandler;
@@ -23,17 +24,33 @@ import java.util.List;
  */
 public class ImageUtil {
     private final static Logger LOGGER = LoggerFactory.getLogger(ImageUtil.class);
-    public String outputDir = null; // Added to remember the output dir for each instance
-    public Vantiq vantiq = null; // Added to allow image saving with VANTIQ
-    public String sourceName = null;
+
+    // All initialized by the NeuralNetConfig
+    public String outputDir; // Added to remember the output dir for each instance
+    public Vantiq vantiq; // Added to allow image saving with VANTIQ
+    public String sourceName;
     public Boolean saveImage;
     public int frameSize;
-    public Boolean queryResize = false;
-    public int longEdge = 0;
-    public Boolean uploadAsImage = false;
+    public Boolean queryResize;
+    public int longEdge;
+    public Boolean uploadAsImage;
 
     // Used to upload image to VANTIQ as VANTIQ Image
     final static String IMAGE_RESOURCE_PATH = "/resources/images";
+
+    /**
+     * Constructor for ImageUtil using NeuralNetConfig
+     */
+    public ImageUtil(NeuralNetConfig neuralNetConfig) {
+        outputDir = neuralNetConfig.getOutputDir();
+        vantiq = neuralNetConfig.getVantiq();
+        sourceName = neuralNetConfig.getSourceName();
+        saveImage = neuralNetConfig.isSaveImage();
+        frameSize = neuralNetConfig.getFrameSize();
+        queryResize = neuralNetConfig.isQueryResize();
+        longEdge = neuralNetConfig.getLongEdge();
+        uploadAsImage = neuralNetConfig.isUploadAsImage();
+    }
 
     /**
      * Label image with classes and predictions given by the TensorFLow YOLO Implementation

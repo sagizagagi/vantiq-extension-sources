@@ -15,6 +15,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import edu.ml.tensorflow.NeuralNetConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,70 +47,71 @@ public class NoProcessor implements NeuralNetInterface {
     public Boolean isSetup = false;
     
     Logger log = LoggerFactory.getLogger(this.getClass());
-    String outputDir = null;
-    String saveImage = null;
-    Vantiq vantiq;
-    String server;
-    String authToken;
-    String sourceName;
+    NeuralNetConfig neuralNetConfig = new NeuralNetConfig();
     ImageUtil imageUtil;
-    int saveRate = 1;
+
+    // Default config values
+    private static final int SAVE_RATE_DEFAULT = 1;
+
     int frameCount = 0;
     int fileCount = 0; // Used for saving files with same name
-    boolean uploadAsImage = false;
 
     @Override
     public void setupImageProcessing(Map<String, ?> neuralNetConfig, String sourceName, String modelDirectory, String authToken, String server) {
-        this.server = server;
-        this.authToken = authToken;
-        this.sourceName = sourceName;
-        
+        this.neuralNetConfig.setServer(server);
+        this.neuralNetConfig.setAuthToken(authToken);
+        this.neuralNetConfig.setSourceName(sourceName);
+
         // Setup the variables for saving images
-        imageUtil = new ImageUtil();
         if (neuralNetConfig.get(SAVE_IMAGE) instanceof String) {
-            saveImage = (String) neuralNetConfig.get(SAVE_IMAGE);
+            String saveImage = (String) neuralNetConfig.get(SAVE_IMAGE);
             
             // Check which method of saving the user requests
             if (!saveImage.equalsIgnoreCase(VANTIQ) && !saveImage.equalsIgnoreCase(BOTH) && !saveImage.equalsIgnoreCase(LOCAL)) {
                 log.error("The config value for saveImage was invalid. Images will not be saved.");
-            }
-            if (!saveImage.equalsIgnoreCase(VANTIQ)) {
-                if (neuralNetConfig.get(OUTPUT_DIR) instanceof String) {
-                    outputDir = (String) neuralNetConfig.get(OUTPUT_DIR);
+                // Flag to mark that we should not save images
+                this.neuralNetConfig.setSaveImage(false);
+            } else {
+                // Flag to mark that we should save images
+                this.neuralNetConfig.setSaveImage(true);
+                if (!saveImage.equalsIgnoreCase(VANTIQ)) {
+                    if (neuralNetConfig.get(OUTPUT_DIR) instanceof String) {
+                        this.neuralNetConfig.setOutputDir((String) neuralNetConfig.get(OUTPUT_DIR));
+                    }
                 }
-            }
-            if (saveImage.equalsIgnoreCase(VANTIQ) || saveImage.equalsIgnoreCase(BOTH)) {
-                vantiq = new io.vantiq.client.Vantiq(server);
-                vantiq.setAccessToken(authToken);
+                if (saveImage.equalsIgnoreCase(VANTIQ) || saveImage.equalsIgnoreCase(BOTH)) {
+                    Vantiq vantiq = new io.vantiq.client.Vantiq(server);
+                    vantiq.setAccessToken(authToken);
+                    this.neuralNetConfig.setVantiq(vantiq);
 
-                // Check if images should be uploaded to VANTIQ as VANTIQ IMAGES
-                if (neuralNetConfig.get(UPLOAD_AS_IMAGE) instanceof Boolean && (Boolean) neuralNetConfig.get(UPLOAD_AS_IMAGE)) {
-                    uploadAsImage = (Boolean) neuralNetConfig.get(UPLOAD_AS_IMAGE);
+                    // Check if images should be uploaded to VANTIQ as VANTIQ IMAGES
+                    if (neuralNetConfig.get(UPLOAD_AS_IMAGE) instanceof Boolean && (Boolean) neuralNetConfig.get(UPLOAD_AS_IMAGE)) {
+                        this.neuralNetConfig.setUploadAsImage((Boolean) neuralNetConfig.get(UPLOAD_AS_IMAGE));
+                    }
                 }
-            }
-            imageUtil.outputDir = outputDir;
-            imageUtil.vantiq = vantiq;
-            imageUtil.saveImage = true;
-            imageUtil.sourceName = sourceName;
-            imageUtil.uploadAsImage = uploadAsImage;
-            if (neuralNetConfig.get(SAVE_RATE) instanceof Integer) {
-                saveRate = (Integer) neuralNetConfig.get(SAVE_RATE);
-                frameCount = saveRate;
+                if (neuralNetConfig.get(SAVE_RATE) instanceof Integer) {
+                    this.neuralNetConfig.setSaveRate((Integer) neuralNetConfig.get(SAVE_RATE));
+                } else {
+                    this.neuralNetConfig.setSaveRate(SAVE_RATE_DEFAULT);
+                }
+
+                frameCount = this.neuralNetConfig.getSaveRate();
             }
         } else {
             // Flag to mark that we should not save images
-            imageUtil.saveImage = false;
+            this.neuralNetConfig.setSaveImage(false);
             log.info("The Neural Net Config did not specify a method of saving images. No images will be saved when polling. "
                     + "If allowQueries is set, then the user can query the source and save images based on the query options.");
         }
-        
+
+        imageUtil = new ImageUtil(this.neuralNetConfig);
         isSetup = true;
     }
 
     // Does no processing, just saves images
     @Override
-    public NeuralNetResults processImage(byte[] image) throws ImageProcessingException {
-        if (imageUtil.saveImage && ++frameCount >= saveRate) {
+    public NeuralNetResults processImage(byte[] image) {
+        if (neuralNetConfig.isSaveImage() && ++frameCount >= neuralNetConfig.getSaveRate()) {
             Date now = new Date(); // Saves the time before
             BufferedImage buffImage = imageUtil.createImageFromBytes(image);
             String fileName = format.format(now);
@@ -130,32 +132,32 @@ public class NoProcessor implements NeuralNetInterface {
 
     // Does no processing, just saves images
     @Override
-    public NeuralNetResults processImage(byte[] image, Map<String, ?> request) throws ImageProcessingException {
-        String saveImage = null;
-        String outputDir = null;
+    public NeuralNetResults processImage(byte[] image, Map<String, ?> request) {
+        NeuralNetConfig queryNeuralNetConfig = new NeuralNetConfig();
+        queryNeuralNetConfig.setSourceName(neuralNetConfig.getSourceName());
+
         String fileName = null;
-        Vantiq vantiq = null;
-        boolean uploadAsImage = false;
-        ImageUtil queryImageUtil = new ImageUtil();
         
         if (request.get(NN_SAVE_IMAGE) instanceof String) {
-            saveImage = (String) request.get(NN_SAVE_IMAGE);
+            String saveImage = (String) request.get(NN_SAVE_IMAGE);
             if (!saveImage.equalsIgnoreCase(VANTIQ) && !saveImage.equalsIgnoreCase(BOTH) && !saveImage.equalsIgnoreCase(LOCAL)) {
                 log.error("The config value for saveImage was invalid. Images will not be saved.");
-                queryImageUtil.saveImage = false;
+                queryNeuralNetConfig.setSaveImage(false);
             } else {
+                queryNeuralNetConfig.setSaveImage(true);
                 if (saveImage.equalsIgnoreCase(VANTIQ) || saveImage.equalsIgnoreCase(BOTH)) {
-                    vantiq = new io.vantiq.client.Vantiq(server);
-                    vantiq.setAccessToken(authToken);
+                    Vantiq vantiq = new io.vantiq.client.Vantiq(neuralNetConfig.getServer());
+                    vantiq.setAccessToken(neuralNetConfig.getAuthToken());
+                    queryNeuralNetConfig.setVantiq(vantiq);
 
                     // Check if images should be uploaded to VANTIQ as VANTIQ IMAGES
                     if (request.get(UPLOAD_AS_IMAGE) instanceof Boolean && (Boolean) request.get(UPLOAD_AS_IMAGE)) {
-                        uploadAsImage = (Boolean) request.get(UPLOAD_AS_IMAGE);
+                        queryNeuralNetConfig.setUploadAsImage((Boolean) request.get(UPLOAD_AS_IMAGE));
                     }
                 }
                 if (!saveImage.equalsIgnoreCase(VANTIQ)) {
                     if (request.get(NN_OUTPUT_DIR) instanceof String) {
-                        outputDir = (String) request.get(NN_OUTPUT_DIR);
+                        queryNeuralNetConfig.setOutputDir((String) request.get(NN_OUTPUT_DIR));
                     }
                 }
                 if (request.get(NN_FILENAME) instanceof String) {
@@ -164,17 +166,14 @@ public class NoProcessor implements NeuralNetInterface {
                         fileName = fileName + ".jpg";
                     }
                 }
-                queryImageUtil.outputDir = outputDir;
-                queryImageUtil.vantiq = vantiq;
-                queryImageUtil.saveImage = true;
-                queryImageUtil.sourceName = sourceName;
-                queryImageUtil.uploadAsImage = uploadAsImage;
             }
         } else {
-            queryImageUtil.saveImage = false;
+            queryNeuralNetConfig.setSaveImage(false);
         }
+
+        ImageUtil queryImageUtil = new ImageUtil(queryNeuralNetConfig);
         
-        if (queryImageUtil.saveImage) {
+        if (queryNeuralNetConfig.isSaveImage()) {
             Date now = new Date(); // Saves the time before
             BufferedImage buffImage = imageUtil.createImageFromBytes(image);
             if (fileName == null) {
@@ -189,7 +188,7 @@ public class NoProcessor implements NeuralNetInterface {
         NeuralNetResults emptyResults = new NeuralNetResults();
         List emptyList = new ArrayList();
         emptyResults.setResults(emptyList);
-        emptyResults.setLastFilename("objectRecognition/" + sourceName + "/" + lastFilename);
+        emptyResults.setLastFilename("objectRecognition/" + neuralNetConfig.getSourceName() + "/" + lastFilename);
         return emptyResults;
     }
 
@@ -197,5 +196,4 @@ public class NoProcessor implements NeuralNetInterface {
     public void close() {
         // Nothing to close here
     }
-
 }

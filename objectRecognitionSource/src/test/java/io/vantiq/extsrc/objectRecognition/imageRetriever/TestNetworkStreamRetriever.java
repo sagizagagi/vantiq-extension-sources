@@ -18,8 +18,8 @@ import io.vantiq.extsrc.objectRecognition.exception.ImageAcquisitionException;
 public class TestNetworkStreamRetriever {
     NetworkStreamRetriever retriever;
     NoSendORCore source;
-    
-    final String IP_CAMERA_URL = "http://153.142.207.158:80/-wvhttp-01-/GetOneShot?image_size=640x480&frame_count=1000000000";
+
+    final String IP_CAMERA_URL = "http://207.192.232.2:8000/mjpg/video.mjpg";
     
     @Before
     public void setup() {

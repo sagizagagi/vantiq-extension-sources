@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import edu.ml.tensorflow.NeuralNetConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -532,12 +533,12 @@ public class ObjectRecognitionCore {
     * @param request    The parameters sent with the query.
     * @return           The instantiated ImageUtil class, setup with properties based on the request
     */
-   public ImageUtil setupQueryImageUtil(Map<String, ?> request) {   
-       ImageUtil imageUtil = new ImageUtil();
+   public ImageUtil setupQueryImageUtil(Map<String, ?> request) {
+       NeuralNetConfig neuralNetConfig = new NeuralNetConfig();
        Vantiq vantiq = new io.vantiq.client.Vantiq(targetVantiqServer);
        vantiq.setAccessToken(authToken);
-       imageUtil.vantiq = vantiq;
-       imageUtil.sourceName = sourceName;
+       neuralNetConfig.setVantiq(vantiq);
+       neuralNetConfig.setSourceName(sourceName);
        // Checking if additional image resizing has been requested
        if (request.get(SAVED_RESOLUTION) instanceof Map) {
            Map savedResolution = (Map) request.get(SAVED_RESOLUTION);
@@ -546,18 +547,18 @@ public class ObjectRecognitionCore {
                if (longEdge < 0) {
                    log.error("The config value for longEdge must be a non-negative integer. Saved image resolution will not be changed.");
                } else {
-                   imageUtil.longEdge = longEdge;
-                   imageUtil.queryResize = true;
+                   neuralNetConfig.setLongEdge(longEdge);
+                   neuralNetConfig.setQueryResize(true);
                }
            }
        }
 
        // Check if images should be uploaded to VANTIQ as VANTIQ IMAGES
        if (request.get(UPLOAD_AS_IMAGE) instanceof Boolean && (Boolean) request.get(UPLOAD_AS_IMAGE)) {
-            imageUtil.uploadAsImage = (Boolean) request.get(UPLOAD_AS_IMAGE);
+           neuralNetConfig.setUploadAsImage(true);
        }
-       
-       return imageUtil;
+
+       return new ImageUtil(neuralNetConfig);
    }
    
    /**
@@ -601,8 +602,9 @@ public class ObjectRecognitionCore {
        if (parsedParameterResult == null) {
            return;
        }
-       
-       ImageUtil imageUtil = new ImageUtil();
+
+       // Use an empty config, since all we are using ImageUtil for is to delete
+       ImageUtil imageUtil = new ImageUtil(new NeuralNetConfig());
        
        if (parsedParameterResult.get(IMAGE_NAME) != null) {
            String imageName = (String) parsedParameterResult.get(IMAGE_NAME);

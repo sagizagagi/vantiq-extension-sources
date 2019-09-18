@@ -14,11 +14,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import edu.ml.tensorflow.NeuralNetConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.ml.tensorflow.ObjectDetector;
-import edu.ml.tensorflow.util.ImageUtil;
 import edu.ml.tensorflow.classifier.YOLOClassifier;
 import io.vantiq.extsrc.objectRecognition.exception.ImageProcessingException;
 
@@ -64,21 +64,9 @@ import io.vantiq.client.Vantiq;
 public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2 {
 
     Logger log = LoggerFactory.getLogger(this.getClass());
-    String pbFile = null;
-    String labelsFile = null;
-    String metaFile = null;
-    String outputDir = null;
-    String saveImage = null;
-    double[] anchorArray = null;
-    Boolean labelImage = false;
-    Vantiq vantiq;
-    String server;
-    String authToken;
-    String sourceName;
-    ImageUtil imageUtil;
-    float threshold = 0.5f;
-    int saveRate = 1;
-    boolean uploadAsImage = false;
+
+    // Neural Net Config class used to hold all config options
+    NeuralNetConfig neuralNetConfig = new NeuralNetConfig();
     
     // Variables for pre crop
     int x = -1;
@@ -111,6 +99,9 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
     private static final String LONG_EDGE = "longEdge";
     private static final String UPLOAD_AS_IMAGE = "uploadAsImage";
 
+    // Default config values
+    private static final int SAVE_RATE_DEFAULT = 1;
+    private static final float THRESHOLD_DEFAULT = 0.5f;
 
     // Constants for Query Parameter options
     private static final String NN_OUTPUT_DIR = "NNoutputDir";
@@ -123,7 +114,7 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
     public void setupImageProcessing(Map<String, ?> neuralNetConfig, String sourceName, String modelDirectory, String authToken, String server) throws Exception {
         setup(neuralNetConfig, sourceName, modelDirectory, authToken, server);
         try {
-            objectDetector = new ObjectDetector(threshold, pbFile, labelsFile, metaFile, anchorArray, imageUtil, outputDir, labelImage, saveRate, vantiq, sourceName);
+            objectDetector = new ObjectDetector(this.neuralNetConfig);
         } catch (Exception e) {
             throw new Exception(this.getClass().getCanonicalName() + ".yoloBackendSetupError: " 
                     + "Failed to create new ObjectDetector", e);
@@ -139,25 +130,26 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
      * @throws Exception        Thrown when an invalid configuration is requested
      */
     private void setup(Map<String, ?> neuralNet, String sourceName, String modelDirectory, String authToken, String server) throws Exception {
-        this.server = server;
-        this.authToken = authToken;
-        this.sourceName = sourceName;
+        neuralNetConfig.setServer(server);
+        neuralNetConfig.setAuthToken(authToken);
+        neuralNetConfig.setSourceName(sourceName);
+
         // Obtain the files for the net
-       if (neuralNet.get(PB_FILE) instanceof String && 
+       if (neuralNet.get(PB_FILE) instanceof String &&
                (neuralNet.get(LABEL_FILE) instanceof String || neuralNet.get(META_FILE) instanceof String)) {
            if (!modelDirectory.equals("") && !modelDirectory.endsWith("/") && !modelDirectory.endsWith("\\")) {
                modelDirectory += "/";
            }
            if (neuralNet.get(LABEL_FILE) instanceof String) {
-               labelsFile = modelDirectory + (String) neuralNet.get(LABEL_FILE);
+               neuralNetConfig.setLabelsFile(modelDirectory + (String) neuralNet.get(LABEL_FILE));
                log.warn("A label file has been detected and will be used. Label files are deprecated, we encourage you "
                        + "to use a meta file instead.");
-           }  
-           if (neuralNet.get(META_FILE) instanceof String) {
-               metaFile = modelDirectory + (String) neuralNet.get(META_FILE);
            }
-           pbFile = modelDirectory + (String) neuralNet.get(PB_FILE);
-           
+           if (neuralNet.get(META_FILE) instanceof String) {
+               neuralNetConfig.setMetaFile(modelDirectory + (String) neuralNet.get(META_FILE));
+           }
+           neuralNetConfig.setPbFile(modelDirectory + (String) neuralNet.get(PB_FILE));
+
        } else {
            throw new Exception(this.getClass().getCanonicalName() + ".missingConfig: Invalid Configuration: " 
                    + "A YOLO NeuralNet configuration requires a pbFile and a metaFile and/or labelFile. " 
@@ -165,17 +157,18 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
                    + ", metaFile: " + (neuralNet.get(META_FILE) instanceof String ? (String) neuralNet.get(META_FILE)  : " ") 
                    + ", labelFile: " + (neuralNet.get(LABEL_FILE) instanceof String ? (String) neuralNet.get(LABEL_FILE)  : " "));
        }
-       
+
        if (neuralNet.get(THRESHOLD) instanceof Number) {
            Number threshNum = (Number) neuralNet.get(THRESHOLD);
            float tempThresh = threshNum.floatValue();
            if (0 <= tempThresh && tempThresh <= 1) {
-               threshold = tempThresh;
+               neuralNetConfig.setThreshold(tempThresh);
            } else if (0 <= tempThresh && tempThresh <= 100) {
-               threshold = tempThresh/100;
+               neuralNetConfig.setThreshold(tempThresh/100);
            } else {
                log.warn("The threshold specified in the config is not valid. The threshold was set to its default "
                        + "value of 0.5");
+               neuralNetConfig.setThreshold(THRESHOLD_DEFAULT);
            }
        } else {
            log.debug("The threshold was not specified in the config. Using default threshold value of 0.5.");
@@ -191,7 +184,7 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
                        + "Default anchor values will be used.");
            } else {
                // Checking to make sure anchor pairs are valid, and creating double[] from List if they are
-               anchorArray = new double[YOLOClassifier.NUMBER_OF_BOUNDING_BOX * 2];
+               double[] anchorArray = new double[YOLOClassifier.NUMBER_OF_BOUNDING_BOX * 2];
                for (int i = 0; i < tempAnchorList.size(); i++) {
                    if (!(tempAnchorList.get(i) instanceof Number)) {
                        log.error("Invalid Type: each anchor element must be a number. Default anchor values will be used.");
@@ -203,6 +196,7 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
                        anchorArray[i] = (double) tempAnchorList.get(i);
                    }
                }
+               neuralNetConfig.setAnchorArray(anchorArray);
            }
        } else if (neuralNet.get(ANCHORS) != null){
            if (!(neuralNet.get(META_FILE) instanceof String)) {
@@ -214,65 +208,68 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
                        + YOLOClassifier.NUMBER_OF_BOUNDING_BOX * 2 + " numbers. " + "Anchors from the meta file will be used.");
            }
        }
-              
+
        // Setup the variables for saving images
-       imageUtil = new ImageUtil();
        if (neuralNet.get(SAVE_IMAGE) instanceof String) {
-           saveImage = (String) neuralNet.get(SAVE_IMAGE);
-           
-           // Check if user wants to save original image without labels
-           if (neuralNet.get(LABEL_IMAGE) instanceof String) {
-               String labelImageString = (String) neuralNet.get(LABEL_IMAGE);
-               labelImage = labelImageString.equalsIgnoreCase("true");
-           }
-           
-           // Check which method of saving the user requests
+           String saveImage = (String) neuralNet.get(SAVE_IMAGE);
+
+           // Check if save method is valid
            if (!saveImage.equalsIgnoreCase(VANTIQ) && !saveImage.equalsIgnoreCase(BOTH) && !saveImage.equalsIgnoreCase(LOCAL)) {
                log.error("The config value for saveImage was invalid. Images will not be saved.");
-           }
-           if (!saveImage.equalsIgnoreCase(VANTIQ)) {
-               if (neuralNet.get(OUTPUT_DIR) instanceof String) {
-                   outputDir = (String) neuralNet.get(OUTPUT_DIR);
+               // Flag to mark that we should not save images
+               neuralNetConfig.setSaveImage(false);
+           } else {
+               // Flag to mark that we should save images
+               neuralNetConfig.setSaveImage(true);
+               // Check which method of saving the user requests
+               if (!saveImage.equalsIgnoreCase(VANTIQ)) {
+                   if (neuralNet.get(OUTPUT_DIR) instanceof String) {
+                       neuralNetConfig.setOutputDir((String) neuralNet.get(OUTPUT_DIR));
+                   }
                }
-           }
-           if (saveImage.equalsIgnoreCase(VANTIQ) || saveImage.equalsIgnoreCase(BOTH)) {
-               vantiq = new io.vantiq.client.Vantiq(server);
-               vantiq.setAccessToken(authToken);
+               if (saveImage.equalsIgnoreCase(VANTIQ) || saveImage.equalsIgnoreCase(BOTH)) {
+                   Vantiq vantiq = new io.vantiq.client.Vantiq(server);
+                   vantiq.setAccessToken(authToken);
+                   neuralNetConfig.setVantiq(vantiq);
 
-               // Check if images should be uploaded to VANTIQ as VANTIQ IMAGES
-               if (neuralNet.get(UPLOAD_AS_IMAGE) instanceof Boolean && (Boolean) neuralNet.get(UPLOAD_AS_IMAGE)) {
-                   uploadAsImage = (Boolean) neuralNet.get(UPLOAD_AS_IMAGE);
+                   // Check if images should be uploaded to VANTIQ as VANTIQ IMAGES
+                   if (neuralNet.get(UPLOAD_AS_IMAGE) instanceof Boolean && (Boolean) neuralNet.get(UPLOAD_AS_IMAGE)) {
+                       neuralNetConfig.setUploadAsImage((Boolean) neuralNet.get(UPLOAD_AS_IMAGE));
+                   }
                }
-           }
-           
-           // Check if any resolution configurations have been set
-           if (neuralNet.get(SAVED_RESOLUTION) instanceof Map) {
-               Map savedResolution = (Map) neuralNet.get(SAVED_RESOLUTION);
-               if (savedResolution.get(LONG_EDGE) instanceof Integer) {
-                   int longEdge = (Integer) savedResolution.get(LONG_EDGE);
-                   if (longEdge < 0) {
-                       log.error("The config value for longEdge must be a non-negative integer. Saved image resolution will not be changed.");
+
+               // Check if user wants to save original image without labels
+               if (neuralNet.get(LABEL_IMAGE) instanceof String) {
+                   String labelImageString = (String) neuralNet.get(LABEL_IMAGE);
+                   neuralNetConfig.setLabelImage(labelImageString.equalsIgnoreCase("true"));
+               }
+
+               // Check if any resolution configurations have been set
+               if (neuralNet.get(SAVED_RESOLUTION) instanceof Map) {
+                   Map savedResolution = (Map) neuralNet.get(SAVED_RESOLUTION);
+                   if (savedResolution.get(LONG_EDGE) instanceof Integer) {
+                       int longEdge = (Integer) savedResolution.get(LONG_EDGE);
+                       if (longEdge < 0) {
+                           log.error("The config value for longEdge must be a non-negative integer. Saved image resolution will not be changed.");
+                       } else {
+                           neuralNetConfig.setLongEdge(longEdge);
+                       }
                    } else {
-                       imageUtil.longEdge = longEdge;
+                       log.debug("The longEdge option was not set, or was improperly set. This option must be a non-negative integer. "
+                               + "Saved image resolution will not be changed.");
                    }
                } else {
-                   log.debug("The longEdge option was not set, or was improperly set. This option must be a non-negative integer. "
-                           + "Saved image resolution will not be changed.");
+                   log.debug("No savedResolution was specified, or savedResolution was invalid. The savedResolution option must be a map.");
                }
-           } else {
-               log.debug("No savedResolution was specified, or savedResolution was invalid. The savedResolution option must be a map.");
-           }
-           imageUtil.outputDir = outputDir;
-           imageUtil.vantiq = vantiq;
-           imageUtil.saveImage = true;
-           imageUtil.sourceName = sourceName;
-           imageUtil.uploadAsImage = uploadAsImage;
-           if (neuralNet.get(SAVE_RATE) instanceof Integer) {
-               saveRate = (Integer) neuralNet.get(SAVE_RATE);
+               if (neuralNet.get(SAVE_RATE) instanceof Integer) {
+                   neuralNetConfig.setSaveRate((Integer) neuralNet.get(SAVE_RATE));
+               } else {
+                   neuralNetConfig.setSaveRate(SAVE_RATE_DEFAULT);
+               }
            }
        } else {
            // Flag to mark that we should not save images
-           imageUtil.saveImage = false;
+           neuralNetConfig.setSaveImage(false);
        }
        
        // Checking if pre cropping was specified in config
@@ -307,7 +304,8 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
         log.debug("Deprecated method, should no longer be used.");
         return processImage(null, image);
     }
-    
+
+
     /**
      * Deprecated method, should not be used anymore.
      */
@@ -346,19 +344,19 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
         }
 
         after = System.currentTimeMillis();
-        log.debug("Image processing time for source " + sourceName + ": {}.{} seconds"
+        log.debug("Image processing time for source " + neuralNetConfig.getSourceName() + ": {}.{} seconds"
                 , (after - before) / 1000, String.format("%03d", (after - before) % 1000));
         
         // Save filename, or mark it as null if images are not saved
         if (objectDetector.lastFilename == null) {
             results.setLastFilename(null);
         } else {
-            results.setLastFilename("objectRecognition/" + sourceName + '/' + objectDetector.lastFilename);
+            results.setLastFilename("objectRecognition/" + neuralNetConfig.getSourceName() + '/' + objectDetector.lastFilename);
         }
         results.setResults(foundObjects);
         return results;
     }
-    
+
     /**
      * Run the image through a YOLO net. May save the resulting image depending on the request.
      */
@@ -366,11 +364,8 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
     public NeuralNetResults processImage(Map<String, ?> processingParams, byte[] image, Map<String, ?> request) throws ImageProcessingException {
         List<Map<String, ?>> foundObjects;
         NeuralNetResults results = new NeuralNetResults();
-        String saveImage = null;
-        String outputDir = null;
-        String fileName = null;
-        Vantiq vantiq = null;
-        boolean uploadAsImage = false;
+        NeuralNetConfig queryNeuralNetConfig = new NeuralNetConfig();
+        String fileName;
 
         Date timestamp;
         if (processingParams != null && processingParams.get(IMAGE_TIMESTAMP) instanceof Date) {
@@ -381,28 +376,35 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
         fileName = format.format(timestamp);
 
         if (request.get(NN_SAVE_IMAGE) instanceof String) {
-            saveImage = (String) request.get(NN_SAVE_IMAGE);
+            String saveImage = (String) request.get(NN_SAVE_IMAGE);
             if (!saveImage.equalsIgnoreCase(VANTIQ) && !saveImage.equalsIgnoreCase(BOTH) && !saveImage.equalsIgnoreCase(LOCAL)) {
                 log.error("The config value for saveImage was invalid. Images will not be saved.");
+                queryNeuralNetConfig.setSaveImage(false);
             } else {
+                queryNeuralNetConfig.setSaveImage(true);
                 if (saveImage.equalsIgnoreCase(VANTIQ) || saveImage.equalsIgnoreCase(BOTH)) {
-                    vantiq = new io.vantiq.client.Vantiq(server);
-                    vantiq.setAccessToken(authToken);
+                    Vantiq vantiq = new io.vantiq.client.Vantiq(neuralNetConfig.getServer());
+                    vantiq.setAccessToken(neuralNetConfig.getAuthToken());
+                    queryNeuralNetConfig.setVantiq(vantiq);
 
                     // Check if images should be uploaded to VANTIQ as VANTIQ IMAGES
                     if (request.get(UPLOAD_AS_IMAGE) instanceof Boolean && (Boolean) request.get(UPLOAD_AS_IMAGE)) {
-                        uploadAsImage = (Boolean) request.get(UPLOAD_AS_IMAGE);
+                        boolean uploadAsImage = (Boolean) request.get(UPLOAD_AS_IMAGE);
+                        queryNeuralNetConfig.setUploadAsImage(uploadAsImage);
                     }
                 }
                 if (!saveImage.equalsIgnoreCase(VANTIQ)) {
                     if (request.get(NN_OUTPUT_DIR) instanceof String) {
-                        outputDir = (String) request.get(NN_OUTPUT_DIR);
+                        String outputDir = (String) request.get(NN_OUTPUT_DIR);
+                        queryNeuralNetConfig.setOutputDir(outputDir);
                     }
                 }
                 if (request.get(NN_FILENAME) instanceof String) {
                     fileName = (String) request.get(NN_FILENAME);
                 }
             }
+        } else {
+            queryNeuralNetConfig.setSaveImage(false);
         }
                 
         // Checking if pre cropping was specified in query parameters
@@ -440,11 +442,12 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
         if (!fileName.endsWith(".jpg") && !fileName.endsWith(".jpeg")) {
             fileName += ".jpg";
         }
+        queryNeuralNetConfig.setFileName(fileName);
         
         long after;
         long before = System.currentTimeMillis();
         try {
-            foundObjects = objectDetector.detect(image, outputDir, fileName, vantiq, uploadAsImage);
+            foundObjects = objectDetector.detect(image, queryNeuralNetConfig);
         } catch (IllegalArgumentException e) {
             throw new ImageProcessingException(this.getClass().getCanonicalName() + ".queryInvalidImage: " 
                     + "Data to be processed was invalid. Most likely it was not correctly encoded as a jpg.", e);
@@ -459,7 +462,7 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
         if (objectDetector.lastFilename == null) {
             results.setLastFilename(null);
         } else {
-            results.setLastFilename("objectRecognition/" + sourceName + '/' + objectDetector.lastFilename);
+            results.setLastFilename("objectRecognition/" + neuralNetConfig.getSourceName() + '/' + objectDetector.lastFilename);
         }
         results.setResults(foundObjects);
         return results;

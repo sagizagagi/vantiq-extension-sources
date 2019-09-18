@@ -84,6 +84,7 @@ public class TestYoloProcessor extends NeuralNetTestBase {
     static final int KEYBOARD_CROPPED_HEIGHT = 125;
 
     // Used to test suppressNullValues
+    // TODO - change this camera address
     static final String NO_RECOGNIZED_OBJECTS_CAMERA_ADDRESS = "http://183.77.203.213:80/-wvhttp-01-/GetOneShot?image_size=640x480&frame_count=1000000000";
     static final int CORE_START_TIMEOUT = 10;
 
@@ -292,10 +293,10 @@ public class TestYoloProcessor extends NeuralNetTestBase {
         }
         
         // useMetaIfAvailable flag should be true, since Config Size value is unchanged (default is 416)
-        assert ypImageSaver.objectDetector.metaConfigOptions.useMetaIfAvailable == true;
+        assert ypImageSaver.objectDetector.neuralNetConfig.useMetaIfAvailable == true;
         
         // Frame Size should be 608 since this is what is included in the meta file
-        assert ypImageSaver.objectDetector.metaConfigOptions.frameSize == 608;
+        assert ypImageSaver.objectDetector.neuralNetConfig.frameSize == 608;
         
         config.remove("metaFile");
         config.put("labelFile", LABEL_FILE);
@@ -307,10 +308,10 @@ public class TestYoloProcessor extends NeuralNetTestBase {
         
         // useMetaIfAvailable flag should still be true regardless of meta file presence
         // Since there is no meta file, default value will be used
-        assert ypImageSaver2.objectDetector.metaConfigOptions.useMetaIfAvailable == true;
+        assert ypImageSaver2.objectDetector.neuralNetConfig.useMetaIfAvailable == true;
         
         // Frame Size should be 416 since this is what is the default
-        assert ypImageSaver2.objectDetector.metaConfigOptions.frameSize == 416;
+        assert ypImageSaver2.objectDetector.neuralNetConfig.frameSize == 416;
     }
 
     @Test
