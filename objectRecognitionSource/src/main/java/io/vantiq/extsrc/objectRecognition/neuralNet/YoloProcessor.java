@@ -366,6 +366,7 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
         List<Map<String, ?>> foundObjects;
         NeuralNetResults results = new NeuralNetResults();
         NeuralNetConfig queryNeuralNetConfig = new NeuralNetConfig();
+        queryNeuralNetConfig.setSourceName(neuralNetConfig.getSourceName());
         String fileName;
 
         Date timestamp;
