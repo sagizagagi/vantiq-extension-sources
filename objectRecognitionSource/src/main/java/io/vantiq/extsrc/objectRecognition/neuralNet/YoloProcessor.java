@@ -171,6 +171,7 @@ public class YoloProcessor extends NeuralNetUtils implements NeuralNetInterface2
                neuralNetConfig.setThreshold(THRESHOLD_DEFAULT);
            }
        } else {
+           neuralNetConfig.setThreshold(THRESHOLD_DEFAULT);
            log.debug("The threshold was not specified in the config. Using default threshold value of 0.5.");
        }
        
