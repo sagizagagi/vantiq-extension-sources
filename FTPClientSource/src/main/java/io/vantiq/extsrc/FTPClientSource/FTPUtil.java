@@ -39,22 +39,23 @@ public class FTPUtil {
     public FTPUtil(Logger log) {
         this.Log = log;
     }
-    public boolean closeFtpConection() throws VantiqFTPClientException{
+
+    public boolean closeFtpConection() throws VantiqFTPClientException {
 
         try {
             if (ftpClient.isConnected()) {
                 ftpClient.logout();
                 ftpClient.disconnect();
             }
-            return true; 
+            return true;
 
         } catch (IOException ex) {
             ex.printStackTrace();
-            throw new VantiqFTPClientException("Failed closeing Connection",ex); 
+            throw new VantiqFTPClientException("Failed closeing Connection", ex);
         }
     }
- 
-    public boolean openFtpConection(String server, Integer port, String user, String password,int connectTimeout)
+
+    public boolean openFtpConection(String server, Integer port, String user, String password, int connectTimeout)
             throws VantiqFTPClientException {
         ftpClient = new org.apache.commons.net.ftp.FTPClient();
         try {
@@ -63,7 +64,7 @@ public class FTPUtil {
             ftpClient.login(user, password);
             int returnCode = ftpClient.getReplyCode();
             if (returnCode == FTP_LOGIN_FAILED) {
-                throw new VantiqFTPClientException("Login failed " + server );
+                throw new VantiqFTPClientException("Login failed " + server);
             }
 
             ftpClient.enterLocalPassiveMode();
@@ -74,7 +75,7 @@ public class FTPUtil {
         } catch (IOException ex) {
             Log.error("Error: " + ex.getMessage());
             ex.printStackTrace();
-            //throw new VantiqFTPClientException("Failed open ftp connection", ex);
+            // throw new VantiqFTPClientException("Failed open ftp connection", ex);
             return false;
         } finally {
         }
@@ -160,30 +161,22 @@ public class FTPUtil {
 
     }
 
-    public Boolean deleteLocalFile(String filename){
-        try
-        {
+    public Boolean deleteLocalFile(String filename) {
+        try {
             Files.deleteIfExists(Paths.get(filename));
-            return true; 
-        }
-        catch(NoSuchFileException e)
-        {
+            return true;
+        } catch (NoSuchFileException e) {
             Log.error("No such file/directory exists", e);
-        }
-        catch(DirectoryNotEmptyException e)
-        {
+        } catch (DirectoryNotEmptyException e) {
             Log.error("Directory is not empty.", e);
-        }
-        catch(IOException e)
-        {
+        } catch (IOException e) {
             Log.error("Invalid permissions.", e);
         }
         return false;
     }
 
-
     public boolean uploadFolder(String server, Integer port, String user, String password, String remoteFolderPath,
-            String localFolderPath,Boolean deleteAfterUpload, Integer connectTimeout) throws VantiqFTPClientException {
+            String localFolderPath, Boolean deleteAfterUpload, Integer connectTimeout) throws VantiqFTPClientException {
 
         FTPClient currentFtpClient = new org.apache.commons.net.ftp.FTPClient();
 
@@ -193,7 +186,7 @@ public class FTPUtil {
             currentFtpClient.login(user, password);
             int returnCode = currentFtpClient.getReplyCode();
             if (returnCode == FTP_LOGIN_FAILED) {
-                throw new VantiqFTPClientException("Login failed " + remoteFolderPath );
+                throw new VantiqFTPClientException("Login failed " + remoteFolderPath);
             }
 
             currentFtpClient.enterLocalPassiveMode();
@@ -217,8 +210,8 @@ public class FTPUtil {
                     if (!UploadFile(currentFtpClient, localFolderPath, fileName, remoteFolderPath)) {
                         Log.error("File " + fileName + " couldn't uploaded");
                     } else {
-                        if (deleteAfterUpload){
-                            if (deleteLocalFile(f.getPath())){
+                        if (deleteAfterUpload) {
+                            if (deleteLocalFile(f.getPath())) {
                                 Log.info("File " + f.getPath() + " uploaded and deleted");
                             } else {
                                 Log.error("File " + f.getPath() + " uploaded but couldn't deleted");
@@ -249,7 +242,8 @@ public class FTPUtil {
     }
 
     public boolean downloadFolder(String server, Integer port, String user, String password, String remoteFolderPath,
-            String localFolderPath,boolean deleteAfterDownload,Integer connectTimeout,Boolean addPrefixToDownload,String serverName,
+            String localFolderPath, boolean deleteAfterDownload, Integer connectTimeout, Boolean addPrefixToDownload,
+            String serverName,
             FTPServerEntry serverEntry) throws VantiqFTPClientException {
 
         FTPClient currentFtpClient = new org.apache.commons.net.ftp.FTPClient();
@@ -260,7 +254,7 @@ public class FTPUtil {
             currentFtpClient.login(user, password);
             int returnCode = currentFtpClient.getReplyCode();
             if (returnCode == FTP_LOGIN_FAILED) {
-                throw new VantiqFTPClientException("Login failed " + server );
+                throw new VantiqFTPClientException("Login failed " + server);
             }
 
             currentFtpClient.enterLocalPassiveMode();
@@ -276,19 +270,19 @@ public class FTPUtil {
             }
 
             FTPFile[] files = currentFtpClient.listFiles();
-//            FTPFile[] files = ftpClient.listFiles();
+            // FTPFile[] files = ftpClient.listFiles();
             for (FTPFile f : files) {
                 String fileName = f.getName();
                 String s = localFolderPath + "/" + fileName;
-                if (addPrefixToDownload){
-                    s = localFolderPath + "/" +serverName.toLowerCase()+"_"+ fileName;
-                    Log.info("File Prefix added" + fileName + " to "+ s);
+                if (addPrefixToDownload) {
+                    s = localFolderPath + "/" + serverName.toLowerCase() + "_" + fileName;
+                    Log.info("File Prefix added" + fileName + " to " + s);
                 }
                 if (!DownFile(currentFtpClient, fileName, s)) {
                     Log.error("File " + fileName + " couldn't downloaded");
                 } else {
-                    if (deleteAfterDownload){
-                        if (deleteRemoteFile(currentFtpClient,fileName)){
+                    if (deleteAfterDownload) {
+                        if (deleteRemoteFile(currentFtpClient, fileName)) {
                             Log.info("File " + fileName + " downloaded and deleted");
                         } else {
                             Log.error("File " + fileName + " downloaded but couldn't deleted");
@@ -296,21 +290,23 @@ public class FTPUtil {
 
                     }
 
-                    // in case need to be upload to dsocument. 
-          
-                if (serverEntry.autoUploadToDocumentPostfix != "" && s.indexOf(serverEntry.autoUploadToDocumentPostfix) !=-1){
-                        VantiqUtil vu = new VantiqUtil(Log, serverEntry.documentServer, serverEntry.documentServerToken); 
+                    // in case need to be upload to document.
+
+                    if (serverEntry.autoUploadToDocumentPostfix != ""
+                            && s.indexOf(serverEntry.autoUploadToDocumentPostfix) != -1) {
+                        VantiqUtil vu = new VantiqUtil(Log, serverEntry.documentServer,
+                                serverEntry.documentServerToken);
                         vu.uploadAsImage = true;
-                        String fullDestinationPath = serverEntry.baseDocumentPath + "/" + fileName ;
+                        String fullDestinationPath = serverEntry.baseDocumentPath + "/" + fileName;
                         File fu = new File(s);
-                        if (vu.uploadToVantiq(fu, fullDestinationPath)){
+                        if (vu.uploadToVantiq(fu, fullDestinationPath)) {
                             Log.info("File " + fileName + " Uploaded to vantiq document");
                         } else {
                             Log.error("File " + fileName + " Failed to upload to Vantiq document");
                         }
 
-                        if (serverEntry.deleteAfterSuccessfullUpload){
-                            if (deleteLocalFile(s)){
+                        if (serverEntry.deleteAfterSuccessfullUpload) {
+                            if (deleteLocalFile(s)) {
                                 Log.info("File " + fileName + " uploaded to Vantiq document and deleted");
                             } else {
                                 Log.error("File " + fileName + " uploaded to Vantiq document but couldn't deleted");
@@ -341,20 +337,20 @@ public class FTPUtil {
         }
     }
 
-    public boolean checkCommunication(String server, Integer port, String user, String password,Integer connectTimeout)
+    public boolean checkCommunication(String server, Integer port, String user, String password, Integer connectTimeout)
             throws VantiqFTPClientException {
 
         FTPClient currentFtpClient = new org.apache.commons.net.ftp.FTPClient();
 
         try {
 
-            String remoteFolderPath = server + ":" + port ; 
+            String remoteFolderPath = server + ":" + port;
             currentFtpClient.setConnectTimeout(connectTimeout);
             currentFtpClient.connect(server, port);
             currentFtpClient.login(user, password);
             int returnCode = currentFtpClient.getReplyCode();
             if (returnCode == FTP_LOGIN_FAILED) {
-                throw new VantiqFTPClientException("Login failed " + server );
+                throw new VantiqFTPClientException("Login failed " + server);
             }
 
             return true;
@@ -393,8 +389,9 @@ public class FTPUtil {
         } finally {
         }
     }
+
     public boolean cleanRemoteFolder(String server, Integer port, String user, String password, String remoteFolderPath,
-            Integer ageInDays,Integer connectTimeout) throws VantiqFTPClientException {
+            Integer ageInDays, Integer connectTimeout) throws VantiqFTPClientException {
 
         FTPClient currentFtpClient = new org.apache.commons.net.ftp.FTPClient();
 
@@ -404,7 +401,7 @@ public class FTPUtil {
             currentFtpClient.login(user, password);
             int returnCode = currentFtpClient.getReplyCode();
             if (returnCode == FTP_LOGIN_FAILED) {
-                throw new VantiqFTPClientException("Login failed " + server );
+                throw new VantiqFTPClientException("Login failed " + server);
             }
 
             currentFtpClient.enterLocalPassiveMode();

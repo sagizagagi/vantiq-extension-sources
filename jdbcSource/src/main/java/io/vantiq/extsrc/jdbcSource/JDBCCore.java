@@ -388,11 +388,9 @@ public class JDBCCore {
 
                 // If we reached the last row, send with 200 code
                 if (i + bundleFactor >= len) {
-                    System.out.print("***** TX http200 %d\n");
                     client.sendQueryResponse(200, replyAddress, rowBundle);
                 } else {
                     // Otherwise, send row with 100 code signifying more data to come
-                    System.out.print("***** TX http100");
                     client.sendQueryResponse(100, replyAddress, rowBundle);
                 }
                 lastRowBundle = rowBundle;

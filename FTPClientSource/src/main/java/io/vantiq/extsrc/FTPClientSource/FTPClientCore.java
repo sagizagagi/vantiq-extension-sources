@@ -204,6 +204,11 @@ public class FTPClientCore {
                         sendDataFromQuery(queryArray, message);
                     }
                         break;
+                    case "uploaddocument": {
+                        HashMap[] queryArray = localFTPClient.processUploadDocument(message);
+                        sendDataFromQuery(queryArray, message);
+                    }
+                        break;
                     case "importdocument": {
                         HashMap[] queryArray = localFTPClient.processImportDocument(message);
                         sendDataFromQuery(queryArray, message);

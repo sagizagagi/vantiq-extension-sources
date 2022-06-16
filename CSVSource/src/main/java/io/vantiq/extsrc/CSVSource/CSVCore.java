@@ -189,6 +189,11 @@ public class CSVCore {
                         sendDataFromQuery(queryArray, message);
                     }
                         break;
+                    case "execute": {
+                        HashMap[] queryArray = localCsv.processOnetimeFileImport(message);
+                        sendDataFromQuery(queryArray, message);
+                    }
+                        break;
                     default:
                         log.error("Unrecognized op : {0}", opString);
                         client.sendQueryError(replyAddress, this.getClass().getName() + ".opNotSupported",

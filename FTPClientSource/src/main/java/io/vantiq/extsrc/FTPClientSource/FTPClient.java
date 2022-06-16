@@ -188,6 +188,8 @@ public class FTPClient {
     public static String FTPClient_IMPORT_DOCUMENT_SOURCE_MISSING_MESSAGE = "Must supply source server URL , source server token and SourceServerPath";
     public static String FTPClient_IMPORT_DOCUMENT_FILE_MISSING_MESSAGE = "Must supply File name and WorkFolderPath to import";
 
+    public static String FTPClient_UPLOAD_DOCUMENT_DESTINATION_MISSING_MESSAGE = "Must supply documentServerPath server URL ,documentToken and documentServer";
+
     public static String FTPClient_SUCCESS_DOWNLOAD_HTTP_MESSAGE = "Download Http finished successfully";
     public static String FTPClient_DOWNLOAD_HTTP_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.DownloadHttpFailure";
     public static String FTPClient_DOWNLOAD_HTTP_SOURCE_MISSING_MESSAGE = "Must supply source url File name to download";
@@ -714,14 +716,16 @@ public class FTPClient {
     }
 
     /**
-     * The method used to execute an upload imgae command, triggered by a SELECT on
+     * The method used to execute an upload image command, triggered by a SELECT on
      * the respective source from VANTIQ.
+     * specifically for images
      * 
      * @param message
      * @return
      * @throws VantiqFTPClientException
      */
     public HashMap[] processUploadImage(ExtensionServiceMessage message) throws VantiqFTPClientException {
+
         HashMap[] rsArray = null;
         String checkedAttribute = BODY_KEYWORD;
         String sourcePathStr = "";
@@ -784,8 +788,90 @@ public class FTPClient {
     }
 
     /**
-     * The method used to execute an upload imgae command, triggered by a SELECT on
+     * The method used to execute an upload image command, triggered by a SELECT on
      * the respective source from VANTIQ.
+     * any document.
+     * 
+     * @param message
+     * @return
+     * @throws VantiqFTPClientException
+     */
+    public HashMap[] processUploadDocument(ExtensionServiceMessage message)
+            throws VantiqFTPClientException {
+        HashMap[] rsArray = null;
+        String checkedAttribute = BODY_KEYWORD;
+        String sourcePathStr = "";
+        String destinationPathStr = "";
+        String name = "default";
+
+        try {
+            Map<String, ?> request = (Map<String, ?>) message.getObject();
+            Map<String, Object> body = (Map<String, Object>) request.get(checkedAttribute);
+
+            checkedAttribute = FTPClientHandleConfiguration.DOCUMENT_SERVER;
+            String documentServer = SetFieldStringValue(checkedAttribute, body, defaultServer.documentServer, false); // body.get(checkedAttribute).toString();
+
+            checkedAttribute = FTPClientHandleConfiguration.DOCUMENT_SERVER_TOKEN;
+            String token = SetFieldStringValue(checkedAttribute, body, defaultServer.documentServerToken, false);
+
+            checkedAttribute = FTPClientHandleConfiguration.DOCUMENT_SERVER_PATH;
+            destinationPathStr = SetFieldStringValue(checkedAttribute, body, defaultServer.documentServerPath, true);
+
+            checkedAttribute = FILENAME_KEYWORD;
+            String fileName = SetFieldStringValue(checkedAttribute, body, "", true);
+
+            checkedAttribute = LOCAL_PATH_KEYWORD;
+            String localFilename = SetFieldStringValue(checkedAttribute, body, "", true);
+
+            checkedAttribute = "";
+
+            if (localFilename == null || token == "" || documentServer == null || destinationPathStr == "") {
+                rsArray = CreateResponse(FTPClient_UPLOAD_DOCUMENT_FAILED_CODE,
+                        FTPClient_UPLOAD_DOCUMENT_DESTINATION_MISSING_MESSAGE, localFilename);
+
+            } else {
+                VantiqUtil vantiqUtil = new VantiqUtil(log, documentServer, token);
+
+                File f = new File(localFilename);
+                String fullDestinationPath = destinationPathStr + "/" + fileName;
+
+                vantiqUtil.uploadAsImage = true;
+
+                log.info(String.format("Start upload %s to %s", localFilename, fullDestinationPath));
+
+                if (!vantiqUtil.uploadToVantiq(f, fullDestinationPath)) {
+                    rsArray = CreateResponse(FTPClient_UPLOAD_DOCUMENT_FAILED_CODE,
+                            FTPClient_UPLOAD_DOCUMENT_FAILED_MESSAGE, fullDestinationPath);
+                } else {
+                    rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_SUCCESS_IMPORT_DOCUMENT_MESSAGE,
+                            fullDestinationPath);
+
+                    log.info(String.format("Finish successfully uploading %s to %s", localFilename,
+                            fullDestinationPath));
+                }
+            }
+
+            return rsArray;
+
+        } catch (Exception ex) {
+            if (checkedAttribute != "") {
+                throw new VantiqFTPClientException(
+                        String.format("Illegal request structure , attribute %s doesn't exist", checkedAttribute), ex);
+            } else {
+                throw new VantiqFTPClientException("General Error", ex);
+            }
+        } finally {
+
+        }
+
+    }
+
+    /**
+     * The method used to execute an upload image command, triggered by a SELECT on
+     * the respective source from VANTIQ.
+     * The method fetch document from one vantiq instance document to the other.
+     * main purpose is distributing images (or other articles) existing in central
+     * level to branch level
      * 
      * @param message
      * @return

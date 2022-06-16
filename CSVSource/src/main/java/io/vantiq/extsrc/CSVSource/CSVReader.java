@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -59,11 +60,13 @@ public class CSVReader {
      * @param file      - the list of events to be sent .
      * @param oClient
      */
-    static void sendNotification(String filename, String type, int numPacket, ArrayList<Map<String, String>> file,
+    static void sendNotification(String filename, String type, String sectionName, int numPacket,
+            ArrayList<Map<String, String>> file,
             ExtensionWebSocketClient oClient) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("file", filename);
         m.put("type", type);
+        m.put("section", sectionName);
         m.put("segment", numPacket);
         m.put("lines", file);
         if (oClient != null) {
@@ -96,7 +99,6 @@ public class CSVReader {
 
         Map<String, FixedRecordfieldInfo> recordInfo = new HashMap<String, FixedRecordfieldInfo>();
         Set<String> fieldList = schema.keySet();
-        int recordSize = 0;
 
         for (String field : fieldList) {
             Map<String, String> fieldInf = schema.get(field);
@@ -137,7 +139,8 @@ public class CSVReader {
      * @throws VantiqCSVException
      */
     // @SuppressWarnings("unchecked")
-    static public ArrayList<Map<String, String>> executeXMLFile(String csvFile, Map<String, Object> config,
+    static public ArrayList<Map<String, String>> executeXMLFile(String csvFile, String sectionName,
+            Map<String, Object> config,
             ExtensionWebSocketClient oClient) throws InterruptedException, VantiqCSVException {
 
         int packetIndex = 0;
@@ -174,7 +177,7 @@ public class CSVReader {
                 lineValues.put("xml", jsonPrettyPrintString);
                 file.add(lineValues);
 
-                sendNotification(csvFile, "XML", packetIndex, file, oClient);
+                sendNotification(csvFile, "XML", sectionName, packetIndex, file, oClient);
             } catch (JSONException je) {
                 log.error("Convert2Json failed", je);
             }
@@ -198,7 +201,8 @@ public class CSVReader {
      * @throws VantiqCSVException
      */
     @SuppressWarnings("unchecked")
-    static public ArrayList<Map<String, String>> executeFixedRecord(String csvFile, Map<String, Object> config,
+    static public ArrayList<Map<String, String>> executeFixedRecord(String csvFile, String sectionName,
+            Map<String, Object> config,
             ExtensionWebSocketClient oClient) throws InterruptedException, VantiqCSVException {
 
         int numOfRecords; // This is the total number of records/lines processed from the file.
@@ -265,10 +269,12 @@ public class CSVReader {
 
                     if (o.reversed) {
 
-                        StringBuilder sb = new StringBuilder();
-                        sb.append(RTLReverse.rToLNumberRepair(t));
-                        sb = sb.reverse();
-                        t = sb.toString();
+                        if (!t.matches("\\w+")) {
+                            StringBuilder sb = new StringBuilder();
+                            sb.append(RTLReverse.rToLNumberRepair(t));
+                            sb = sb.reverse();
+                            t = sb.toString();
+                        }
                     }
 
                     lineValues.put(key, t);
@@ -283,7 +289,7 @@ public class CSVReader {
                         log.info("TX Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                                 numOfRecords);
                     }
-                    sendNotification(csvFile, "FixedLength", packetIndex, file, oClient);
+                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
                     if (SleepBetweenPackets > 0) {
                         Thread.sleep(SleepBetweenPackets);
                     }
@@ -299,7 +305,7 @@ public class CSVReader {
                     log.info("TX Last Packet Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                             numOfRecords);
                 }
-                sendNotification(csvFile, "FixedLength", packetIndex, file, oClient);
+                sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
             }
             return file;
 
@@ -320,7 +326,7 @@ public class CSVReader {
      * @return
      */
     @SuppressWarnings("unchecked")
-    static public ArrayList<Map<String, String>> execute(String csvFile, Map<String, Object> config,
+    static public ArrayList<Map<String, String>> execute(String csvFile, String sectionName, Map<String, Object> config,
             ExtensionWebSocketClient oClient) {
         String line = "";
         int numOfRecords; // This is the total number of records/lines processed from the file.
@@ -340,6 +346,12 @@ public class CSVReader {
         if (config.get("delimiter") != null) {
             delimiter = config.get("delimiter").toString();
         }
+
+        String charSet = "ISO_8859_1";// "";
+        if (config.get("charset") != null) {
+            charSet = config.get("charset").toString();
+        }
+
         boolean processNullValues = false;
         if (config.get("processNullValues") != null) {
             processNullValues = Boolean.parseBoolean(config.get("processNullValues").toString());
@@ -350,10 +362,15 @@ public class CSVReader {
             skipFirstLine = Boolean.parseBoolean(config.get("skipFirstLine").toString());
         }
 
+        int SleepBetweenPackets = 0;
+        if (config.get("waitBetweenTx") != null) {
+            SleepBetweenPackets = (int) config.get("waitBetweenTx");
+        }
+
         int MaxLinesInEvent = (int) config.get(MAX_LINES_IN_EVENT);
         ArrayList<Map<String, String>> file = new ArrayList<Map<String, String>>();
 
-        try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(csvFile), charSet))) {
             numOfRecords = 0;
             while ((line = br.readLine()) != null) {
 
@@ -366,7 +383,27 @@ public class CSVReader {
                     for (int i = 0; i < values.length; i++) {
                         if (values[i].length() != 0) {
                             String currField = setFieldName(schemaFieldIndex, schema);
-                            lineValues.put(currField, values[i]);
+
+                            String t = values[i];
+                            FieldInfo o = FieldInfo.Create(currField, schema);
+
+                            if (o.charSet != null) {
+                                byte[] valueBytes = values[i].getBytes();
+                                t = new String(valueBytes, o.charSet).trim();
+                            } else {
+                                t = values[i].trim();
+                            }
+
+                            if (o.reversed) {
+                                if (!t.matches("\\w+")) {
+                                    StringBuilder sb = new StringBuilder();
+                                    sb.append(RTLReverse.rToLNumberRepair(t));
+                                    sb = sb.reverse();
+                                    t = sb.toString();
+                                }
+                            }
+
+                            lineValues.put(currField, t);
                             schemaFieldIndex++;
                         } else if (processNullValues) {
                             schemaFieldIndex++;
@@ -378,11 +415,22 @@ public class CSVReader {
 
                     if (file.size() >= MaxLinesInEvent) {
                         if (extendedLogging) {
-                            log.info("TX Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
+                            log.info("execute: TX Packet {} Size {} Total num of Records {}", packetIndex,
+                                    MaxLinesInEvent,
                                     numOfRecords);
                         }
-                        sendNotification(csvFile, "Delimited", packetIndex, file, oClient);
+                        System.out.print("**** Before senNotification");
+                        sendNotification(csvFile, "Delimited", sectionName, packetIndex, file, oClient);
+                        System.out.print("**** After senNotification");
                         file = new ArrayList<Map<String, String>>();
+                        if (SleepBetweenPackets > 0) {
+                            try {
+                                Thread.sleep(SleepBetweenPackets);
+                            } catch (InterruptedException ex) {
+                                log.error("execute exception {}", ex);
+                            }
+                        }
+
                         packetIndex++;
                     }
                 } else {
@@ -391,11 +439,12 @@ public class CSVReader {
             }
             if (file.size() > 0) {
                 if (extendedLogging) {
-                    log.info("TX Last Packet Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
+                    log.info("execute: TX Last Packet Packet {} Size {} Total num of Records {}", packetIndex,
+                            MaxLinesInEvent,
                             numOfRecords);
                 }
 
-                sendNotification(csvFile, "Delimited", packetIndex, file, oClient);
+                sendNotification(csvFile, "Delimited", sectionName, packetIndex, file, oClient);
             }
             return file;
         } catch (IOException e) {
@@ -415,7 +464,8 @@ public class CSVReader {
      * @return
      */
     @SuppressWarnings("unchecked")
-    static public ArrayList<Map<String, String>> executeMixedSize(String csvFile, Map<String, Object> config,
+    static public ArrayList<Map<String, String>> executeMixedSize(String csvFile, String sectionName,
+            Map<String, Object> config,
             ExtensionWebSocketClient oClient) throws InterruptedException, VantiqCSVException {
 
         String line = "";
@@ -492,7 +542,7 @@ public class CSVReader {
 
                     FixedRecordfieldInfo o = recordMetaData.get(key);
                     String t;
-                    if (o.offset + o.length < len - 2) {
+                    if (o.offset + o.length <= len - 2) {
                         if (o.charSet != null) {
                             t = new String(tempBuffer, o.offset, o.length, o.charSet).trim();
                         } else {
@@ -501,10 +551,12 @@ public class CSVReader {
 
                         if (o.reversed) {
 
-                            StringBuilder sb = new StringBuilder();
-                            sb.append(RTLReverse.rToLNumberRepair(t));
-                            sb = sb.reverse();
-                            t = sb.toString();
+                            if (!t.matches("\\w+")) {
+                                StringBuilder sb = new StringBuilder();
+                                sb.append(RTLReverse.rToLNumberRepair(t));
+                                sb = sb.reverse();
+                                t = sb.toString();
+                            }
                         }
 
                         lineValues.put(key, t);
@@ -520,7 +572,7 @@ public class CSVReader {
                         log.info("TX Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                                 numOfRecords);
                     }
-                    sendNotification(csvFile, "FixedLength", packetIndex, file, oClient);
+                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
                     if (SleepBetweenPackets > 0) {
                         Thread.sleep(SleepBetweenPackets);
                     }
@@ -542,7 +594,7 @@ public class CSVReader {
                     log.info("TX Last Packet Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                             numOfRecords);
                 }
-                sendNotification(csvFile, "FixedLength", packetIndex, file, oClient);
+                sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
             }
             return file;
 

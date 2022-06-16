@@ -27,9 +27,13 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 /**
- * XMLHttpServer receive xml object from post HTTP request, convert it to JSON and notify vantiq source. 
- * congiguration enable IP - which control what is the scope the a meesages can send from, post to listen and the service path - define in the context 
- * value, for example IP: 0.0.0.0 - open to any IP connect request, Port 80 , Context /alarm means that the service is open to any message on port 80, which use the follwing url 
+ * XMLHttpServer receive xml object from post HTTP request, convert it to JSON
+ * and notify vantiq source.
+ * congiguration enable IP - which control what is the scope the a meesages can
+ * send from, post to listen and the service path - define in the context
+ * value, for example IP: 0.0.0.0 - open to any IP connect request, Port 80 ,
+ * Context /alarm means that the service is open to any message on port 80,
+ * which use the follwing url
  * 
  * https://destinationIs:80/alarm
  */
@@ -101,11 +105,11 @@ public class XMLHttpServer {
                     Map<String, String> lineValues = new HashMap<String, String>();
                     lineValues.put("xml", jsonPrettyPrintString);
                     file.add(lineValues);
-                    CSVReader.sendNotification("TCP", "XML", 0, file, oClient);
+                    CSVReader.sendNotification("TCP", "XML", "default", 0, file, oClient);
                 } catch (JSONException eje) {
                     log.error("Convert2Json failed", eje);
                     requestParamValue = eje.toString();
-                } finally{
+                } finally {
                     isr.close();
                     br.close();
                 }

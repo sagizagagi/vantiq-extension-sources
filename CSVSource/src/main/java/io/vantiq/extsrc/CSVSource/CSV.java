@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import groovy.ui.Console;
 import io.vantiq.extjsdk.ExtensionServiceMessage;
 import io.vantiq.extjsdk.ExtensionWebSocketClient;
 import io.vantiq.extsrc.CSVSource.exception.VantiqCSVException;
@@ -129,6 +130,7 @@ public class CSV {
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
     // Used to receive configuration informatio .
     Map<String, Object> config;
+    Map<String, Object> fullConfig;
     Map<String, Object> options;
 
     boolean isRunningInLinux = isRunningInsideLinux();
@@ -172,6 +174,8 @@ public class CSV {
     private static final String CONTENT_KEYWORD = "content";
     private static final String TEXT_KEYWORD = "text";
 
+    private static final String SECTION_KEYWORD = "section";
+
     public static String CSV_NOFILE_CODE = "io.vantiq.extsrc.csvsource.nofile";
     public static String CSV_NOFILE_MESSAGE = "File does not exist.";
     public static String CSV_NOFOLDER_CODE = "io.vantiq.extsrc.csvsource.nofolder";
@@ -179,10 +183,14 @@ public class CSV {
     public static String CSV_FILEEXIST_CODE = "io.vantiq.extsrc.csvsource.fileexists";
     public static String CSV_FILEEXIST_MESSAGE = "File already exists.";
 
+    public static String CSV_NOSECTION_CODE = "io.vantiq.extsrc.csvsource.noConfigSection";
+    public static String CSV_NOSECTION_MESSAGE = "Section name does not exist.";
+
     public static String CSV_SUCCESS_CODE = "io.vantiq.extsrc.csvsource.success";
     public static String CSV_SUCCESS_FILE_CREATED_MESSAGE = "File Created Successfully";
     public static String CSV_SUCCESS_FILE_APPENDED_MESSAGE = "File Appended Successfully";
     public static String CSV_SUCCESS_FILE_DELETED_MESSAGE = "File Deleted Successfully.";
+    public static String CSV_SUCCESS_FILE_PROCESSED_MESSAGE = "File Start to Process Successfully.";
 
     /**
      * Create resource which will required by the extension activity
@@ -299,10 +307,12 @@ public class CSV {
      * @throws VantiqCSVException
      */
     public void setupCSV(ExtensionWebSocketClient oClient, String fileFolderPath, String fullFilePath,
-            Map<String, Object> config, Map<String, Object> options) throws VantiqCSVException {
+            Map<String, Object> fullConfig, Map<String, Object> config, Map<String, Object> options)
+            throws VantiqCSVException {
         try {
             this.fullFilePath = fullFilePath;
             this.config = config;
+            this.fullConfig = fullConfig;
             this.options = options;
             this.oClient = oClient;
             this.fileFolderPath = fileFolderPath;
@@ -363,57 +373,124 @@ public class CSV {
             executionPool.execute(new Runnable() {
                 @Override
                 public void run() {
-                    log.info("start executing {}", fullFileName);
-                    try {
-                        String configType = (String) config.get("fileType");
 
-                        if (configType != null && configType.toLowerCase().equals("fixedlength")) {
-                            CSVReader.executeFixedRecord(fullFileName, config, oClient);
-                        } else if (configType != null && configType.toLowerCase().equals("mixedfixedlength")) {
-                            CSVReader.executeMixedSize(fullFileName, config, oClient);
-                        } else if (configType != null && configType.toLowerCase().equals("xml")) {
-                            CSVReader.executeXMLFile(fullFileName, config, oClient);
-                        } else {
-                            CSVReader.execute(fullFileName, config, oClient);
-                        }
-
-                        File file = new File(fullFileName);
-                        if (saveToArchive) {
-                            File destFile = getArchirvedFileName(file);
-                            try {
-                                copyFileUsingStream(file, destFile);
-                                log.info("copy file {} to {}", file.getName(), destFile.getName());
-
-                            } catch (IOException io) {
-                                log.error("failure to copy archive", io);
-
-                            }
-
-                        }
-
-                        if (deleteAfterProcessing) {
-                            log.info("File {} deleted", fullFileName);
-                            file.delete();
-                        } else if (extensionAfterProcessing != "") {
-
-                            File newfullFileName = new File(
-                                    getFilenameWithoutExtnsion(fullFileName.toLowerCase()) + extensionAfterProcessing);
-                            log.info("File {} renamed to {}", fullFileName, newfullFileName);
-                            if (newfullFileName.exists()) {
-                                newfullFileName.delete();
-                            }
-                            file.renameTo(newfullFileName);
-                        }
-                    } catch (RejectedExecutionException e) {
-                        log.error(
-                                "The queue of tasks has filled, and as a result the request was unable to be processed.",
-                                e);
-                    } catch (Exception ex) {
-                        log.error("Failure in executing Task", ex);
-                    }
+                    executeFileInPool(fullFileName, config);
+                    /*
+                     * 
+                     * log.info("start executing {}", fullFileName);
+                     * try {
+                     * String configType = (String) config.get("fileType");
+                     * 
+                     * if (configType != null && configType.toLowerCase().equals("fixedlength")) {
+                     * CSVReader.executeFixedRecord(fullFileName, config, oClient);
+                     * } else if (configType != null &&
+                     * configType.toLowerCase().equals("mixedfixedlength")) {
+                     * CSVReader.executeMixedSize(fullFileName, config, oClient);
+                     * } else if (configType != null && configType.toLowerCase().equals("xml")) {
+                     * CSVReader.executeXMLFile(fullFileName, config, oClient);
+                     * } else {
+                     * CSVReader.execute(fullFileName, config, oClient);
+                     * }
+                     * 
+                     * File file = new File(fullFileName);
+                     * if (saveToArchive) {
+                     * File destFile = getArchirvedFileName(file);
+                     * try {
+                     * copyFileUsingStream(file, destFile);
+                     * log.info("copy file {} to {}", file.getName(), destFile.getName());
+                     * 
+                     * } catch (IOException io) {
+                     * log.error("failure to copy archive", io);
+                     * 
+                     * }
+                     * 
+                     * }
+                     * 
+                     * if (deleteAfterProcessing) {
+                     * log.info("File {} deleted", fullFileName);
+                     * file.delete();
+                     * } else if (extensionAfterProcessing != "") {
+                     * 
+                     * File newfullFileName = new File(
+                     * getFilenameWithoutExtnsion(fullFileName.toLowerCase()) +
+                     * extensionAfterProcessing);
+                     * log.info("File {} renamed to {}", fullFileName, newfullFileName);
+                     * if (newfullFileName.exists()) {
+                     * newfullFileName.delete();
+                     * }
+                     * file.renameTo(newfullFileName);
+                     * }
+                     * } catch (RejectedExecutionException e) {
+                     * log.error(
+                     * "The queue of tasks has filled, and as a result the request was unable to be processed."
+                     * ,
+                     * e);
+                     * } catch (Exception ex) {
+                     * log.error("Failure in executing Task", ex);
+                     * }
+                     * 
+                     */
                 }
             });
         }
+    }
+
+    void executeFileInPool(String fullFileName, Map<String, Object> currentConfig) {
+        executeFileInPool(fullFileName, "default", currentConfig);
+    }
+
+    void executeFileInPool(String fullFileName, String sectionName, Map<String, Object> currentConfig) {
+        log.info("start executing {}", fullFileName);
+        try {
+            String configType = (String) currentConfig.get("fileType");
+
+            if (configType != null && configType.toLowerCase().equals("fixedlength")) {
+                CSVReader.executeFixedRecord(fullFileName, sectionName, currentConfig, oClient);
+            } else if (configType != null && configType.toLowerCase().equals("mixedfixedlength")) {
+                CSVReader.executeMixedSize(fullFileName, sectionName, currentConfig, oClient);
+            } else if (configType != null && configType.toLowerCase().equals("xml")) {
+                CSVReader.executeXMLFile(fullFileName, sectionName, currentConfig, oClient);
+            } else {
+                CSVReader.execute(fullFileName, sectionName, currentConfig, oClient);
+            }
+
+            File file = new File(fullFileName);
+            if (saveToArchive) {
+                File destFile = getArchirvedFileName(file);
+                try {
+                    copyFileUsingStream(file, destFile);
+                    log.info("copy file {} to {}", file.getName(), destFile.getName());
+
+                } catch (IOException io) {
+                    log.error("failure to copy archive", io);
+
+                }
+
+            }
+
+            if (deleteAfterProcessing) {
+                log.info("File {} deleted", fullFileName);
+                file.delete();
+            } else if (extensionAfterProcessing != "") {
+
+                File newfullFileName = new File(
+                        getFilenameWithoutExtnsion(fullFileName.toLowerCase()) + extensionAfterProcessing);
+                log.info("File {} renamed to {}", fullFileName, newfullFileName);
+
+                if (newfullFileName.exists()) {
+                    newfullFileName.delete();
+                }
+                file.renameTo(newfullFileName);
+
+            }
+        } catch (RejectedExecutionException e) {
+            log.error(
+                    "The queue of tasks has filled, and as a result the request was unable to be processed.",
+                    e);
+        } catch (Exception ex) {
+            log.error("Failure in executing Task", ex);
+        }
+
     }
 
     /**
@@ -426,7 +503,7 @@ public class CSV {
         File folder = new File(fileFolderPath);
         String[] listOfFiles = folder.list(fileFilter);
         if (sendKeepAliveWhenNofileFound && listOfFiles.length == 0) {
-            CSVReader.sendNotification("Watchdog", "KeepALive", 0, null, oClient);
+            CSVReader.sendNotification("Watchdog", "KeepALive", "default", 0, null, oClient);
         } else {
             for (String fileName : listOfFiles) {
                 executeInPool(fileFolderPath, fileName);
@@ -463,6 +540,127 @@ public class CSV {
         }
 
         return rowsArray;
+    }
+
+    void prepareConfigurationData(Map<String, Object> currentCsvConfig) {
+        extension = "csv";
+
+        if (options.get("extensionAfterProcessing") != null) {
+            extensionAfterProcessing = (String) options.get("extensionAfterProcessing");
+        } else {
+            extensionAfterProcessing = extension + extensionAfterProcessing;
+        }
+
+        if (!extensionAfterProcessing.startsWith(".")) {
+            extensionAfterProcessing = "." + extensionAfterProcessing;
+        }
+        if (options.get("deleteAfterProcessing") != null) {
+            deleteAfterProcessing = (boolean) options.get("deleteAfterProcessing");
+        }
+
+        if (config.get("saveToArchive") != null) {
+            saveToArchive = (Boolean) config.get("saveToArchive");
+        }
+
+        if (saveToArchive) {
+            if (config.get("archiveFolderPath") != null) {
+                fileArchivePath = (String) config.get("archiveFolderPath");
+                if (isRunningInLinux) {
+                    this.fileArchivePath = fixFileFolderPathForUnix(this.fileArchivePath);
+                }
+                try {
+                    Path path = Paths.get(fileArchivePath);
+                    Files.createDirectories(path);
+                } catch (IOException io) {
+                    log.error("Failed to create Archive folder , disable save archive", io);
+                    saveToArchive = false;
+                }
+            } else {
+                log.error("Archive folder was not supplied , disable save archive");
+                saveToArchive = false;
+            }
+
+        }
+
+    }
+
+    /**
+     * The method used to execute a delete file command, triggered by a SELECT on
+     * the respective source from VANTIQ.
+     * 
+     * @param message
+     * @return
+     * @throws VantiqCSVException
+     */
+    public HashMap[] processOnetimeFileImport(ExtensionServiceMessage message) throws VantiqCSVException {
+        HashMap[] rsArray = null;
+        String checkedAttribute = SECTION_KEYWORD;
+        String pathStr = "";
+        String fileStr = "";
+        String sectionName = "";
+
+        try {
+            Map<String, ?> request = (Map<String, ?>) message.getObject();
+            Map<String, Object> body = (Map<String, Object>) request.get(BODY_KEYWORD);
+
+            checkedAttribute = SECTION_KEYWORD;
+            sectionName = (String) body.get(checkedAttribute);
+
+            Map<String, Object> currentCsvConfig = (Map<String, Object>) fullConfig.get(sectionName);
+            if (currentCsvConfig == null) {
+                rsArray = CreateResponse(CSV_NOSECTION_CODE, CSV_NOSECTION_MESSAGE, sectionName);
+            } else {
+
+                prepareConfigurationData(currentCsvConfig);
+
+                checkedAttribute = PATH_KEYWORD;
+                pathStr = (String) body.get(PATH_KEYWORD);
+                if (isRunningInLinux) {
+                    pathStr = fixFileFolderPathForUnix(pathStr);
+                }
+                Path path = Paths.get(pathStr);
+                if (!path.toFile().exists()) {
+                    rsArray = CreateResponse(CSV_NOFOLDER_CODE, CSV_NOFOLDER_MESSAGE, pathStr);
+                }
+
+                checkedAttribute = FILE_KEYWORD;
+                fileStr = (String) body.get(FILE_KEYWORD);
+                checkedAttribute = "";
+                String fullFilePath = path.toString() + File.separator + fileStr;
+
+                File file = new File(fullFilePath);
+                if (file.exists()) {
+
+                    String fSectionName = sectionName;
+                    executionPool.execute(new Runnable() {
+                        @Override
+                        public void run() {
+
+                            // executeFileInPool(fullFileName, config);
+                            executeFileInPool(fullFilePath, fSectionName/* sectionName */, currentCsvConfig);
+                        }
+                    });
+                    rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_SUCCESS_FILE_PROCESSED_MESSAGE, fullFilePath);
+                } else {
+                    rsArray = CreateResponse(CSV_NOFILE_CODE, CSV_NOFILE_MESSAGE, fullFilePath);
+                }
+
+            }
+            return rsArray;
+        } catch (
+
+        InvalidPathException exp) {
+            throw new VantiqCSVException(String.format("Path %s not exist", pathStr), exp);
+        } catch (Exception ex) {
+            if (checkedAttribute != "") {
+                throw new VantiqCSVException(
+                        String.format("Illegal request structure , attribute %s doesn't exist", checkedAttribute), ex);
+            } else {
+                throw new VantiqCSVException("General Error", ex);
+            }
+
+        } finally {
+        }
     }
 
     /**

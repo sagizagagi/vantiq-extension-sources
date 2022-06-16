@@ -53,7 +53,8 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
         CreateFileForTest(testFullFilePath, "0000000000006 itemName123412341234 1 100000 200000 01");
 
         try {
-            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, config, null);
+            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, "default", config,
+                    null);
             assertTrue("Unexpected lines of csv file in array", content.size() == 1);
             assertTrue("Unexpected values in first of line of csv file in array", content.get(0).size() == 6);
 
@@ -76,8 +77,9 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
 
         try {
 
-            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, config, null);
-            assertTrue("Exception must be raised" , false);
+            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, "default", config,
+                    null);
+            assertTrue("Exception must be raised", false);
 
         } catch (Exception ex) {
             assertTrue("Exception " + ex, true);
@@ -91,8 +93,9 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
 
         try {
 
-            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, config, null);
-            assertTrue("Exception must be raised" , false);
+            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, "default", config,
+                    null);
+            assertTrue("Exception must be raised", false);
 
         } catch (Exception ex) {
             assertTrue("Exception " + ex, true);
@@ -112,7 +115,8 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
 
         config.put("maxLinesInEvent", 3);
         try {
-            ArrayList<Map<String, String>> lastSegment = CSVReader.executeFixedRecord(testFullFilePath, config, null);
+            ArrayList<Map<String, String>> lastSegment = CSVReader.executeFixedRecord(testFullFilePath, "default",
+                    config, null);
             assertTrue("Unexpected number of segments", CSVReader.segmentList.size() == 3);
 
             assertTrue("Unexpected lines of csv file in array", lastSegment.size() == 2);
@@ -150,7 +154,8 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
         CreateFileForTest(testFullFilePath, "0000000000006 itemName123412341234 1 100000 200000 01");
         AppendFileForTest(testFullFilePath, "0000000000007 itemName123412341234 1 100000 200000 01");
         try {
-            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, config, null);
+            ArrayList<Map<String, String>> content = CSVReader.executeFixedRecord(testFullFilePath, "default", config,
+                    null);
             assertTrue("Unexpected number of segments", CSVReader.segmentList.size() == 1);
 
             assertTrue("Unexpected lines of csv file in array", content.size() == 2);

@@ -51,7 +51,7 @@ public class TestCSV extends TestCSVBase {
     @Test
     public void testCorrectErrors() throws VantiqCSVException {
         assumeTrue(testFileFolderPath != null && testFullFilePath != null && IsTestFileFolderExists());
-        csv.setupCSV(null, testFileFolderPath, testFullFilePath, config, options);
+        csv.setupCSV(null, testFileFolderPath, testFullFilePath, null, config, options);
     }
 
     @Test
