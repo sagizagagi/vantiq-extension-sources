@@ -49,6 +49,7 @@ public class CSVReader {
     private static final String MAX_LINES_IN_EVENT = "maxLinesInEvent";
     public static ArrayList segmentList = new ArrayList<>();
     static final Logger log = LoggerFactory.getLogger(CSVMain.class);
+    final static String regex = "\\w+";
 
     /**
      * Send message containing the segment of event t
@@ -268,8 +269,8 @@ public class CSVReader {
                     }
 
                     if (o.reversed) {
-
-                        if (!t.matches("\\w+")) {
+                        String q = t.replace(" ", "");
+                        if (!q.matches(CSVReader.regex)) {
                             StringBuilder sb = new StringBuilder();
                             sb.append(RTLReverse.rToLNumberRepair(t));
                             sb = sb.reverse();
@@ -395,7 +396,8 @@ public class CSVReader {
                             }
 
                             if (o.reversed) {
-                                if (!t.matches("\\w+")) {
+                                String q = t.replace(" ", "");
+                                if (!q.matches(CSVReader.regex)) {
                                     StringBuilder sb = new StringBuilder();
                                     sb.append(RTLReverse.rToLNumberRepair(t));
                                     sb = sb.reverse();
@@ -550,8 +552,8 @@ public class CSVReader {
                         }
 
                         if (o.reversed) {
-
-                            if (!t.matches("\\w+")) {
+                            String q = t.replace(" ", "");
+                            if (!q.matches(CSVReader.regex)) {
                                 StringBuilder sb = new StringBuilder();
                                 sb.append(RTLReverse.rToLNumberRepair(t));
                                 sb = sb.reverse();
