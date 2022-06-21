@@ -31,6 +31,8 @@ import org.json.XML;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import groovy.ui.Console;
 import io.vantiq.extjsdk.ExtensionWebSocketClient;
 import io.vantiq.extsrc.CSVSource.exception.VantiqCSVException;
@@ -64,17 +66,32 @@ public class CSVReader {
     static void sendNotification(String filename, String type, String sectionName, int numPacket,
             ArrayList<Map<String, String>> file,
             ExtensionWebSocketClient oClient) {
+        ObjectMapper mapper = new ObjectMapper();
+
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("file", filename);
         m.put("type", type);
         m.put("section", sectionName);
         m.put("segment", numPacket);
         m.put("lines", file);
-        if (oClient != null) {
-            oClient.sendNotification(m);
-        } else {
-            segmentList.add(m); // this for auto testing only , will not allocate space in production
+
+        try {
+            byte[] b = mapper.writeValueAsBytes(m);
+
+            if (b.length > 262144) {
+                log.error("sendNotification Message is too long , over 262144");
+            } else {
+
+                if (oClient != null) {
+                    oClient.sendNotification(m);
+                } else {
+                    segmentList.add(m); // this for auto testing only , will not allocate space in production
+                }
+            }
+        } catch (Exception ex) {
+            log.error("sendNotification failed convert to Json", ex);
         }
+
     }
 
     /**

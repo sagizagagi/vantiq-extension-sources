@@ -156,6 +156,8 @@ public class CSV {
     private String ipListenAddress;
     private Timer timerTask;
 
+    private List<String> currentlyProcessingFiles = new ArrayList<String>();
+
     private static final int MAX_ACTIVE_TASKS = 5;
     private static final int MAX_QUEUED_TASKS = 10;
     private static final int DEFAULT_POLL_TIME = 30000;
@@ -374,62 +376,18 @@ public class CSV {
                 @Override
                 public void run() {
 
-                    executeFileInPool(fullFileName, config);
-                    /*
-                     * 
-                     * log.info("start executing {}", fullFileName);
-                     * try {
-                     * String configType = (String) config.get("fileType");
-                     * 
-                     * if (configType != null && configType.toLowerCase().equals("fixedlength")) {
-                     * CSVReader.executeFixedRecord(fullFileName, config, oClient);
-                     * } else if (configType != null &&
-                     * configType.toLowerCase().equals("mixedfixedlength")) {
-                     * CSVReader.executeMixedSize(fullFileName, config, oClient);
-                     * } else if (configType != null && configType.toLowerCase().equals("xml")) {
-                     * CSVReader.executeXMLFile(fullFileName, config, oClient);
-                     * } else {
-                     * CSVReader.execute(fullFileName, config, oClient);
-                     * }
-                     * 
-                     * File file = new File(fullFileName);
-                     * if (saveToArchive) {
-                     * File destFile = getArchirvedFileName(file);
-                     * try {
-                     * copyFileUsingStream(file, destFile);
-                     * log.info("copy file {} to {}", file.getName(), destFile.getName());
-                     * 
-                     * } catch (IOException io) {
-                     * log.error("failure to copy archive", io);
-                     * 
-                     * }
-                     * 
-                     * }
-                     * 
-                     * if (deleteAfterProcessing) {
-                     * log.info("File {} deleted", fullFileName);
-                     * file.delete();
-                     * } else if (extensionAfterProcessing != "") {
-                     * 
-                     * File newfullFileName = new File(
-                     * getFilenameWithoutExtnsion(fullFileName.toLowerCase()) +
-                     * extensionAfterProcessing);
-                     * log.info("File {} renamed to {}", fullFileName, newfullFileName);
-                     * if (newfullFileName.exists()) {
-                     * newfullFileName.delete();
-                     * }
-                     * file.renameTo(newfullFileName);
-                     * }
-                     * } catch (RejectedExecutionException e) {
-                     * log.error(
-                     * "The queue of tasks has filled, and as a result the request was unable to be processed."
-                     * ,
-                     * e);
-                     * } catch (Exception ex) {
-                     * log.error("Failure in executing Task", ex);
-                     * }
-                     * 
-                     */
+                    if (!currentlyProcessingFiles.contains(fullFileName)) {
+
+                        synchronized (this) {
+                            currentlyProcessingFiles.add(fullFileName);
+                        }
+                        executeFileInPool(fullFileName, config);
+                        synchronized (this) {
+                            currentlyProcessingFiles.remove(fullFileName);
+                        }
+                    } else {
+                        log.warn("already processing file {}", fullFileName);
+                    }
                 }
             });
         }
