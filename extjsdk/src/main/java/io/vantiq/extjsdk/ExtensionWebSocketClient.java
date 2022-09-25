@@ -316,6 +316,8 @@ public class ExtensionWebSocketClient {
 
                 } else {
                     log.error("sendNotification :: localOutstandingNotifications is null");
+                    log.error("sendNotification :: exit(1)");
+                    System.exit(1);
                 }
                 this.send(msg);
             } catch (InterruptedException ie) {
@@ -667,8 +669,13 @@ public class ExtensionWebSocketClient {
                         log.error("Failed to connect to server url .");
                     } else if (!isAuthed()) {
                         log.error("Failed to authenticate within 10 seconds using the given authentication data.");
+                        log.error("CompletableFuture::isAuthed exit(1)");
+                        System.exit(1);
                     } else {
                         log.error("Failed to connect within 10 seconds");
+                        log.error("CompletableFuture :: exit(1)");
+                        System.exit(1);
+
                     }
                 } else {
                     isReconnected = true;

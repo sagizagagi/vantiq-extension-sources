@@ -18,6 +18,7 @@ import java.net.URI;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.nio.file.Files;
 import java.util.HashMap;
@@ -36,6 +37,7 @@ import org.apache.commons.net.ftp.FTPFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import io.vantiq.extjsdk.ExtensionServiceMessage;
 import io.vantiq.extjsdk.ExtensionWebSocketClient;
 import io.vantiq.extsrc.FTPClientSource.exception.VantiqFTPClientException;
@@ -122,8 +124,11 @@ import io.vantiq.extsrc.FTPClientSource.exception.VantiqFTPClientException;
  * and ability to write, append and delete text files to disk .
  */
 public class FTPClient {
+    final static String FTPClient_VERSION = "1.0.0.5";
+    Instant start = Instant.now();
+
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
-    // Used to receive configuration informatio .
+    // Used to receive configuration information .
     Map<String, Object> config;
     Map<String, Object> options;
 
@@ -147,6 +152,8 @@ public class FTPClient {
     private static final int MAX_ACTIVE_TASKS = 5;
     private static final int MAX_QUEUED_TASKS = 10;
     private static final int DEFAULT_POLL_TIME = 30000;
+
+    int restartAfterNoRequestFromServer = 0;
 
     private static final String MAX_ACTIVE_TASKS_LABEL = "maxActiveTasks";
     private static final String MAX_QUEUED_TASKS_LABEL = "maxQueuedTasks";
@@ -215,6 +222,7 @@ public class FTPClient {
     public static String FTPClient_SUCCESS_FILE_CREATED_MESSAGE = "File Created Successfully";
     public static String FTPClient_SUCCESS_FILE_APPENDED_MESSAGE = "File Appended Successfully";
     public static String FTPClient_SUCCESS_FILE_DELETED_MESSAGE = "File Deleted Successfully.";
+    final static String FTPClient_PONG_MESSAGE = "Pong";
 
     /**
      * Create resource which will required by the extension activity
@@ -319,6 +327,11 @@ public class FTPClient {
 
             executionPool = new ThreadPoolExecutor(maxActiveTasks, maxActiveTasks, 0l, TimeUnit.MILLISECONDS,
                     new LinkedBlockingQueue<Runnable>(maxQueuedTasks));
+
+            if (options.get("restartAfterNoRequestFromServer") != null) {
+                restartAfterNoRequestFromServer = (int) options.get("restartAfterNoRequestFromServer");
+            }
+
         } catch (VantiqFTPClientException exv) {
             throw exv;
         } catch (Exception ex) {
@@ -344,6 +357,7 @@ public class FTPClient {
 
             this.config = config;
             this.options = options;
+            this.oClient = oClient;
 
             prepareConfigurationData();
 
@@ -352,6 +366,19 @@ public class FTPClient {
                 public void run() {
                     log.info("TimerTask Start working on existing file in folder {}", remoteFolderPath);
                     LookForRemoteFiles(remoteFolderPath);
+
+                    if (restartAfterNoRequestFromServer > 0) {
+
+                        Instant end = Instant.now();
+                        Duration timeElapsed = Duration.between(start, end);
+                        System.out.println("Time taken: " + timeElapsed.toMillis() + " milliseconds");
+                        if (timeElapsed.toMillis() > restartAfterNoRequestFromServer * 1000) {
+                            log.error(
+                                    "FTPClient timeout exceeded with no communication from server for more then {} seconds",
+                                    restartAfterNoRequestFromServer);
+                            System.exit(1);
+                        }
+                    }
 
                 }
             };
@@ -414,7 +441,7 @@ public class FTPClient {
                 }
 
             } else {
-                // support when there is no server list and shgould download from a single
+                // support when there is no server list and should download from a single
                 // server only.
                 FTPServerEntry currEntry = defaultServer;
                 if (ftpUtil.openFtpConection(currEntry.server, currEntry.port, currEntry.username, currEntry.password,
@@ -429,6 +456,14 @@ public class FTPClient {
                     ftpUtil.closeFtpConection();
                 }
             }
+            /*
+             * HashMap[] rsArray = CreateResponse(FTPClient_SUCCESS_CODE,
+             * FTPClient_PONG_MESSAGE,
+             * FTPClient.FTPClient_VERSION);
+             * if (oClient != null) {
+             * oClient.sendNotification(rsArray[0]);
+             * }
+             */
         } catch (VantiqFTPClientException ex) {
 
         }
@@ -463,6 +498,26 @@ public class FTPClient {
         }
 
         return rowsArray;
+    }
+
+    /**
+     * The method used to response to ping request triggered by a SELECT on
+     * the respective source from VANTIQ.
+     * 
+     * @param message
+     * @return
+     * @throws VantiqCSVException
+     */
+    public HashMap[] ping(ExtensionServiceMessage message) throws VantiqFTPClientException {
+        HashMap[] rsArray = null;
+        try {
+            rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_PONG_MESSAGE, FTPClient_VERSION);
+            return rsArray;
+        } catch (Exception ex) {
+            throw new VantiqFTPClientException("General Error", ex);
+
+        } finally {
+        }
     }
 
     /**
@@ -1274,4 +1329,9 @@ public class FTPClient {
         }
         executionPool.shutdownNow();
     }
+
+    public void SetLastTimeFromServer() {
+        start = Instant.now();
+    }
+
 }

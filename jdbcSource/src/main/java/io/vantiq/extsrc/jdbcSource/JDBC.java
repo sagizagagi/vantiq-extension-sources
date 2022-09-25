@@ -21,6 +21,8 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +41,13 @@ import io.vantiq.extsrc.jdbcSource.exception.VantiqIOException;
 import io.vantiq.extsrc.jdbcSource.exception.VantiqSQLException;
 
 public class JDBC {
+    final static String JDBC_VERSION = "1.0.0.2";
+    final static String JDBC_SUCCESS_CODE = "io.vantiq.extsrc.jdbcsource.success";
+    final static String JDBC_PONG_MESSAGE = "Pong";
+
+    Instant start = Instant.now();
+    int restartAfterNoRequestFromServer = 0;
+
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
     private Connection conn = null;
 
@@ -81,7 +90,8 @@ public class JDBC {
      *                        Connection Pool.
      * @throws VantiqSQLException
      */
-    public void setupJDBC(String dbURL, String username, String password, boolean asyncProcessing, int maxPoolSize)
+    public void setupJDBC(String dbURL, String username, String password, boolean asyncProcessing, int maxPoolSize,
+            int restartAfterNoRequestFromServer)
             throws VantiqSQLException {
         try {
             if (asyncProcessing) {
@@ -110,9 +120,45 @@ public class JDBC {
             this.username = username;
             this.password = password;
             this.isAsync = asyncProcessing;
+            this.restartAfterNoRequestFromServer = restartAfterNoRequestFromServer;
         } catch (SQLException e) {
             // Handle errors for JDBC
             reportSQLError(e);
+        }
+    }
+
+    HashMap[] CreateResponse(String code, String message, String value) {
+        ArrayList<HashMap> rows = new ArrayList<HashMap>();
+
+        HashMap row = new HashMap(3);
+        row.put("code", code);
+        row.put("message", message);
+        row.put("value", value);
+        rows.add(row);
+
+        HashMap[] rowsArray = rows.toArray(new HashMap[rows.size()]);
+
+        return rowsArray;
+    }
+
+    /**
+     * The method used to response to ping request triggered by a SELECT on
+     * the respective source from VANTIQ.
+     * 
+     * @param message
+     * @return
+     * @throws VantiqSQLException
+     * @throws VantiqCSVException
+     */
+    public HashMap[] ping() throws VantiqSQLException {
+        HashMap[] rsArray = null;
+        try {
+
+            rsArray = CreateResponse(JDBC_SUCCESS_CODE, JDBC_PONG_MESSAGE, JDBC.JDBC_VERSION);
+            return rsArray;
+        } catch (Exception ex) {
+            throw new VantiqSQLException("General Error", ex);
+        } finally {
         }
     }
 
@@ -181,6 +227,19 @@ public class JDBC {
      */
     public HashMap[] processQuery(String sqlQuery) throws VantiqSQLException {
         HashMap[] rsArray = null;
+
+        if (restartAfterNoRequestFromServer > 0) {
+
+            Instant end = Instant.now();
+            Duration timeElapsed = Duration.between(start, end);
+            System.out.println("Time taken: " + timeElapsed.toMillis() + " milliseconds");
+            if (timeElapsed.toMillis() > restartAfterNoRequestFromServer * 1000) {
+                log.error(
+                        "FTPClient timeout exceeded with no communication from server for more then {} seconds",
+                        restartAfterNoRequestFromServer);
+                System.exit(1);
+            }
+        }
 
         if (isAsync) {
             try (Connection conn = ds.getConnection();
@@ -433,5 +492,9 @@ public class JDBC {
         if (ds != null) {
             ds.close();
         }
+    }
+
+    public void SetLastTimeFromServer() {
+        start = Instant.now();
     }
 }

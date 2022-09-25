@@ -8,6 +8,8 @@
 
 package io.vantiq.extsrc.jdbcSource;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.HashMap;
@@ -202,6 +204,8 @@ public class JDBCCore {
             }
         }
 
+        localJDBC.SetLastTimeFromServer();
+
         // Gather query results and send the appropriate response, or send a query error
         // if an exception is caught
         try {
@@ -240,6 +244,11 @@ public class JDBCCore {
                 // Check if SQL Query is an update statement, or query statement
 
                 HashMap[] queryArray = localJDBC.processExecute(ExecuteString);
+                sendDataFromQuery(queryArray, message);
+
+            } else if (request.get("op") instanceof String && request.get("op").equals("ping")) {
+
+                HashMap[] queryArray = localJDBC.ping();
                 sendDataFromQuery(queryArray, message);
 
             } else {
@@ -285,6 +294,8 @@ public class JDBCCore {
         if (localJDBC == null) {
             log.error("JDBC connection closed before operation could complete");
         }
+
+        localJDBC.SetLastTimeFromServer();
 
         // Gather query results, or send a query error if an exception is caught
         try {
@@ -333,6 +344,7 @@ public class JDBCCore {
             log.warn("**** localJDBC == null ");
             return;
         }
+
         try {
             HashMap[] queryMap = localJDBC.processQuery(pollQuery);
             if (queryMap != null) {

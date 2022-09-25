@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -167,6 +168,8 @@ public class FTPClientCore {
             }
         }
 
+        localFTPClient.SetLastTimeFromServer();
+
         // Gather query results and send the appropriate response, or send a query error
         // if an exception is caught
         try {
@@ -219,6 +222,13 @@ public class FTPClientCore {
                         sendDataFromQuery(queryArray, message);
                     }
                         break;
+                    case "ping": {
+                        log.warn("rx ping request");
+                        HashMap[] queryArray = localFTPClient.ping(message);
+                        sendDataFromQuery(queryArray, message);
+                    }
+                        break;
+
                     default:
                         log.error("Unrecognized op :" + opString);
                         client.sendQueryError(replyAddress, this.getClass().getName() + ".opNotSupported",

@@ -167,6 +167,8 @@ public class CSVCore {
             }
         }
 
+        localCsv.SetLastTimeFromServer();
+
         // Gather query results and send the appropriate response, or send a query error
         // if an exception is caught
         try {
@@ -194,6 +196,12 @@ public class CSVCore {
                         sendDataFromQuery(queryArray, message);
                     }
                         break;
+                    case "ping": {
+                        log.warn("rx ping request");
+                        HashMap[] queryArray = localCsv.ping(message);
+                        sendDataFromQuery(queryArray, message);
+                    }
+                        break;
                     default:
                         log.error("Unrecognized op : {0}", opString);
                         client.sendQueryError(replyAddress, this.getClass().getName() + ".opNotSupported",
@@ -206,6 +214,13 @@ public class CSVCore {
                 // Check if SQL Query is an update statement, or query statement
 
                 HashMap[] queryArray = localCsv.processExecute(ExecuteString);
+                sendDataFromQuery(queryArray, message);
+
+            } else if (request.get("executelong") instanceof String) {
+                String ExecuteString = (String) request.get("executelong");
+                // Check if SQL Query is an update statement, or query statement
+
+                HashMap[] queryArray = localCsv.processExecuteLongCommand(ExecuteString);
                 sendDataFromQuery(queryArray, message);
 
             } else {

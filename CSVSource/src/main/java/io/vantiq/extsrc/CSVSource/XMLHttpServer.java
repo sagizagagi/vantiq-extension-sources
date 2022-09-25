@@ -105,7 +105,8 @@ public class XMLHttpServer {
                     Map<String, String> lineValues = new HashMap<String, String>();
                     lineValues.put("xml", jsonPrettyPrintString);
                     file.add(lineValues);
-                    CSVReader.sendNotification("TCP", "XML", "default", 0, file, oClient);
+                    CSVReader.sendNotification("TCP", "XML", "default", 0, true, 
+                    file, oClient);
                 } catch (JSONException eje) {
                     log.error("Convert2Json failed", eje);
                     requestParamValue = eje.toString();

@@ -33,7 +33,7 @@ applicationDistribution.from("src/main/resources") {
     include "log4j2.xml"
     into "logConfig"
 }
-
+ 
 dependencies {
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation 'com.google.guava:guava:23.0'

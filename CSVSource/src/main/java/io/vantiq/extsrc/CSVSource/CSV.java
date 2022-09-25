@@ -23,6 +23,8 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -127,6 +129,10 @@ import io.vantiq.extsrc.CSVSource.exception.VantiqIOException;
  * and ability to write, append and delete text files to disk .
  */
 public class CSV {
+    final static String CSV_VERSION = "1.0.0.15";
+
+    Instant start = Instant.now();
+
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
     // Used to receive configuration informatio .
     Map<String, Object> config;
@@ -149,12 +155,14 @@ public class CSV {
     String extensionAfterProcessing = ".done";
     boolean deleteAfterProcessing = false;
     boolean sendKeepAliveWhenNofileFound = false;
+    int restartAfterNoRequestFromServer = 0;
     int pollTime;
     private Boolean enableHttpListener = false;
     private int port;
     private String context;
     private String ipListenAddress;
     private Timer timerTask;
+    private Timer keepAliveTimerTask;
 
     private List<String> currentlyProcessingFiles = new ArrayList<String>();
 
@@ -179,6 +187,7 @@ public class CSV {
     private static final String SECTION_KEYWORD = "section";
 
     public static String CSV_NOFILE_CODE = "io.vantiq.extsrc.csvsource.nofile";
+    public static String CSV_PONG_MESSAGE = "Pong";
     public static String CSV_NOFILE_MESSAGE = "File does not exist.";
     public static String CSV_NOFOLDER_CODE = "io.vantiq.extsrc.csvsource.nofolder";
     public static String CSV_NOFOLDER_MESSAGE = "Folder does not exist.";
@@ -224,6 +233,10 @@ public class CSV {
 
         if (options.get("sendKeepAliveWhenNofileFound") != null) {
             sendKeepAliveWhenNofileFound = (boolean) options.get("sendKeepAliveWhenNofileFound");
+        }
+
+        if (options.get("restartAfterNoRequestFromServer") != null) {
+            restartAfterNoRequestFromServer = (int) options.get("restartAfterNoRequestFromServer");
         }
 
         if (config.get("saveToArchive") != null) {
@@ -337,6 +350,19 @@ public class CSV {
                     log.info("TimerTask Start working on existing file in folder {}", tmpFileFolderPath);
                     handleExistingFiles(tmpFileFolderPath);
 
+                    if (restartAfterNoRequestFromServer > 0) {
+
+                        Instant end = Instant.now();
+                        Duration timeElapsed = Duration.between(start, end);
+                        System.out.println("Time taken: " + timeElapsed.toMillis() + " milliseconds");
+                        if (timeElapsed.toMillis() > restartAfterNoRequestFromServer * 1000) {
+                            log.error(
+                                    "FTPClient timeout exceeded with no communication from server for more then {} seconds",
+                                    restartAfterNoRequestFromServer);
+                            System.exit(1);
+                        }
+                    }
+
                 }
             };
             // Create new Timer, and schedule the task according to the pollTime
@@ -352,7 +378,21 @@ public class CSV {
                 xmlHttpServer.ipListenAddress = ipListenAddress;
                 xmlHttpServer.start();
             }
-
+            /*
+             * String keepAliveTopic = "/KeepAliveTopic/Sample";
+             * TimerTask keepAliveTask = new TimerTask() {
+             * 
+             * @Override
+             * public void run() {
+             * log.info("keepAliveTask Start working , send notification to  {}",
+             * keepAliveTopic);
+             * oClient.sendNotification(data);
+             * 
+             * }
+             * };
+             * keepAliveTimerTask = new Timer("keepAlive");
+             * keepAliveTimerTask.schedule(keepAliveTask, 0, 10000);
+             */
         } catch (Exception e) {
             log.error("CSV failed to read  from {}", fullFilePath, e);
             reportCSVError(e);
@@ -461,7 +501,7 @@ public class CSV {
         File folder = new File(fileFolderPath);
         String[] listOfFiles = folder.list(fileFilter);
         if (sendKeepAliveWhenNofileFound && listOfFiles.length == 0) {
-            CSVReader.sendNotification("Watchdog", "KeepALive", "default", 0, null, oClient);
+            CSVReader.sendNotification("Watchdog", "KeepALive", "default", 0, false, null, oClient);
         } else {
             for (String fileName : listOfFiles) {
                 executeInPool(fileFolderPath, fileName);
@@ -608,6 +648,36 @@ public class CSV {
         } catch (
 
         InvalidPathException exp) {
+            throw new VantiqCSVException(String.format("Path %s not exist", pathStr), exp);
+        } catch (Exception ex) {
+            if (checkedAttribute != "") {
+                throw new VantiqCSVException(
+                        String.format("Illegal request structure , attribute %s doesn't exist", checkedAttribute), ex);
+            } else {
+                throw new VantiqCSVException("General Error", ex);
+            }
+
+        } finally {
+        }
+    }
+
+    /**
+     * The method used to response to ping request triggered by a SELECT on
+     * the respective source from VANTIQ.
+     * 
+     * @param message
+     * @return
+     * @throws VantiqCSVException
+     */
+    public HashMap[] ping(ExtensionServiceMessage message) throws VantiqCSVException {
+        HashMap[] rsArray = null;
+        String checkedAttribute = SECTION_KEYWORD;
+        String pathStr = "";
+        try {
+
+            rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_PONG_MESSAGE, CSV.CSV_VERSION);
+            return rsArray;
+        } catch (InvalidPathException exp) {
             throw new VantiqCSVException(String.format("Path %s not exist", pathStr), exp);
         } catch (Exception ex) {
             if (checkedAttribute != "") {
@@ -781,6 +851,48 @@ public class CSV {
                     line.delete(0, line.length());
                 }
             }
+
+            HashMap[] rsArray = rows.toArray(new HashMap[rows.size()]);
+            return rsArray;
+        } catch (IOException e) {
+            // Handle errors for CSV
+            reportIOError(e, "GenaralError");
+            return null;
+        }
+    }
+
+    public HashMap[] processExecuteLongCommand(String executeCommand) throws VantiqIOException {
+
+        ArrayList<HashMap> rows = new ArrayList<HashMap>();
+
+        try {
+            Runtime runtime = Runtime.getRuntime();
+            Process p1 = runtime.exec("cmd /c" + executeCommand);
+            /*
+             * /
+             * InputStream is = p1.getInputStream();
+             * int i = 0;
+             * StringBuilder line = new StringBuilder();
+             * 
+             * while ((i = is.read()) != -1) {
+             * System.out.print((char) i);
+             * if (i != 10) {
+             * line.append((char) i);
+             * } else {
+             * line.append((char) i);
+             * String l = line.toString().replaceAll("(\\r|\\n)", "");
+             * ;
+             * 
+             * if (l.length() > 0) {
+             * HashMap row = new HashMap(1);
+             * row.put("line", l);
+             * rows.add(row);
+             * }
+             * 
+             * line.delete(0, line.length());
+             * }
+             * }
+             */
 
             HashMap[] rsArray = rows.toArray(new HashMap[rows.size()]);
             return rsArray;
@@ -977,5 +1089,9 @@ public class CSV {
             if (os != null)
                 os.close();
         }
+    }
+
+    public void SetLastTimeFromServer() {
+        start = Instant.now();
     }
 }

@@ -63,7 +63,7 @@ public class CSVReader {
      * @param file      - the list of events to be sent .
      * @param oClient
      */
-    static void sendNotification(String filename, String type, String sectionName, int numPacket,
+    static void sendNotification(String filename, String type, String sectionName, int numPacket, Boolean eof,
             ArrayList<Map<String, String>> file,
             ExtensionWebSocketClient oClient) {
         ObjectMapper mapper = new ObjectMapper();
@@ -73,6 +73,7 @@ public class CSVReader {
         m.put("type", type);
         m.put("section", sectionName);
         m.put("segment", numPacket);
+        m.put("EOF", eof);
         m.put("lines", file);
 
         try {
@@ -162,6 +163,7 @@ public class CSVReader {
             ExtensionWebSocketClient oClient) throws InterruptedException, VantiqCSVException {
 
         int packetIndex = 0;
+        Boolean eof = true;
 
         boolean extendedLogging = false;
         if (config.get("extendedLogging") != null) {
@@ -195,7 +197,7 @@ public class CSVReader {
                 lineValues.put("xml", jsonPrettyPrintString);
                 file.add(lineValues);
 
-                sendNotification(csvFile, "XML", sectionName, packetIndex, file, oClient);
+                sendNotification(csvFile, "XML", sectionName, packetIndex, eof, file, oClient);
             } catch (JSONException je) {
                 log.error("Convert2Json failed", je);
             }
@@ -225,6 +227,7 @@ public class CSVReader {
 
         int numOfRecords; // This is the total number of records/lines processed from the file.
         int packetIndex = 0;
+        Boolean eof = false;
         Map<String, Map<String, String>> schema = null;
         Map<String, FixedRecordfieldInfo> recordMetaData = null;
 
@@ -307,7 +310,7 @@ public class CSVReader {
                         log.info("TX Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                                 numOfRecords);
                     }
-                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
+                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, eof, file, oClient);
                     if (SleepBetweenPackets > 0) {
                         Thread.sleep(SleepBetweenPackets);
                     }
@@ -322,8 +325,15 @@ public class CSVReader {
                 if (extendedLogging) {
                     log.info("TX Last Packet Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                             numOfRecords);
+                    eof = true;
                 }
-                sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
+                sendNotification(csvFile, "FixedLength", sectionName, packetIndex, eof, file, oClient);
+            } else {
+                if (!eof) {
+                    // send last empty message with eof indication.
+                    eof = true;
+                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, eof, null, oClient);
+                }
             }
             return file;
 
@@ -349,6 +359,7 @@ public class CSVReader {
         String line = "";
         int numOfRecords; // This is the total number of records/lines processed from the file.
         int packetIndex = 0;
+        Boolean eof = false;
         Map<String, String> schema = null;
 
         if (config.get("schema") != null) {
@@ -439,7 +450,7 @@ public class CSVReader {
                                     numOfRecords);
                         }
                         System.out.print("**** Before senNotification");
-                        sendNotification(csvFile, "Delimited", sectionName, packetIndex, file, oClient);
+                        sendNotification(csvFile, "Delimited", sectionName, packetIndex, eof, file, oClient);
                         System.out.print("**** After senNotification");
                         file = new ArrayList<Map<String, String>>();
                         if (SleepBetweenPackets > 0) {
@@ -462,8 +473,15 @@ public class CSVReader {
                             MaxLinesInEvent,
                             numOfRecords);
                 }
+                eof = true;
 
-                sendNotification(csvFile, "Delimited", sectionName, packetIndex, file, oClient);
+                sendNotification(csvFile, "Delimited", sectionName, packetIndex, eof, file, oClient);
+            } else {
+                if (eof) {
+                    eof = true;
+                    // send last empty message for identifying EOF
+                    sendNotification(csvFile, "Delimited", sectionName, packetIndex, eof, null, oClient);
+                }
             }
             return file;
         } catch (IOException e) {
@@ -490,6 +508,7 @@ public class CSVReader {
         String line = "";
         int numOfRecords; // This is the total number of records/lines processed from the file.
         int packetIndex = 0;
+        Boolean eof = false;
         Map<String, Map<String, String>> schema = null;
         Map<String, FixedRecordfieldInfo> recordMetaData = null;
 
@@ -591,7 +610,7 @@ public class CSVReader {
                         log.info("TX Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                                 numOfRecords);
                     }
-                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
+                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, eof, file, oClient);
                     if (SleepBetweenPackets > 0) {
                         Thread.sleep(SleepBetweenPackets);
                     }
@@ -613,7 +632,14 @@ public class CSVReader {
                     log.info("TX Last Packet Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                             numOfRecords);
                 }
-                sendNotification(csvFile, "FixedLength", sectionName, packetIndex, file, oClient);
+                eof = true;
+                sendNotification(csvFile, "FixedLength", sectionName, packetIndex, eof, file, oClient);
+            } else {
+                if (!eof) {
+                    eof = true;
+                    // send another empty message for identifying EOF
+                    sendNotification(csvFile, "FixedLength", sectionName, packetIndex, eof, null, oClient);
+                }
             }
             return file;
 
