@@ -124,7 +124,7 @@ import io.vantiq.extsrc.FTPClientSource.exception.VantiqFTPClientException;
  * and ability to write, append and delete text files to disk .
  */
 public class FTPClient {
-    final static String FTPClient_VERSION = "1.0.0.5";
+    final static String FTPClient_VERSION = "1.0.0.6";
     Instant start = Instant.now();
 
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
@@ -169,6 +169,7 @@ public class FTPClient {
     private static final String CONTENT_KEYWORD = "content";
     private static final String TEXT_KEYWORD = "text";
     private static final String WORKFOLDER_KEYWORD = "WorkFolderPath";
+    private static final String CONTENT_TYPE_KEYWORD = "contentType";
 
     FTPServerEntry defaultServer = new FTPServerEntry();
     List<FTPServerEntry> serverList;
@@ -807,6 +808,10 @@ public class FTPClient {
             destinationPathStr = SetFieldStringValue(checkedAttribute, body, "", true);
             // new File(destinationPathStr).mkdirs();
 
+            // checkedAttribute = CONTENT_TYPE_KEYWORD;
+            // String contentType = SetFieldStringValue(checkedAttribute, body,
+            // defaultServer.documentServerToken, false);
+
             if (sourcePathStr == "" || destinationPathStr == "") {
                 rsArray = CreateResponse(FTPClient_UPLOAD_DOCUMENT_FAILED_CODE,
                         FTPClient_UPLOAD_DOCUMENT_MISSING_MESSAGE, destinationPathStr);
@@ -818,7 +823,7 @@ public class FTPClient {
                 String fullDestinationPath = basePathStr + "/" + destinationPathStr;
 
                 vantiqUtil.uploadAsImage = true;
-                if (!vantiqUtil.uploadToVantiq(f, fullDestinationPath)) {
+                if (!vantiqUtil.uploadToVantiq(f, fullDestinationPath, "image/jpeg")) {
                     rsArray = CreateResponse(FTPClient_UPLOAD_DOCUMENT_FAILED_CODE,
                             FTPClient_UPLOAD_DOCUMENT_FAILED_MESSAGE, fullDestinationPath);
                 } else {
@@ -878,6 +883,9 @@ public class FTPClient {
             checkedAttribute = LOCAL_PATH_KEYWORD;
             String localFilename = SetFieldStringValue(checkedAttribute, body, "", true);
 
+            checkedAttribute = CONTENT_TYPE_KEYWORD;
+            String contentType = SetFieldStringValue(checkedAttribute, body, defaultServer.documentServerToken, false);
+
             checkedAttribute = "";
 
             if (localFilename == null || token == "" || documentServer == null || destinationPathStr == "") {
@@ -894,7 +902,7 @@ public class FTPClient {
 
                 log.info(String.format("Start upload %s to %s", localFilename, fullDestinationPath));
 
-                if (!vantiqUtil.uploadToVantiq(f, fullDestinationPath)) {
+                if (!vantiqUtil.uploadToVantiq(f, fullDestinationPath, contentType)) {
                     rsArray = CreateResponse(FTPClient_UPLOAD_DOCUMENT_FAILED_CODE,
                             FTPClient_UPLOAD_DOCUMENT_FAILED_MESSAGE, fullDestinationPath);
                 } else {
@@ -970,6 +978,9 @@ public class FTPClient {
             checkedAttribute = WORKFOLDER_KEYWORD;
             String workFolderPath = SetFieldStringValue(checkedAttribute, body, "", true);
 
+            checkedAttribute = CONTENT_TYPE_KEYWORD;
+            String contentType = SetFieldStringValue(checkedAttribute, body, defaultServer.documentServerToken, false);
+
             // checkedAttribute = LOCAL_PATH_KEYWORD;
             // sourcePathStr = SetFieldStringValue(checkedAttribute, body, "", true);
 
@@ -1000,7 +1011,7 @@ public class FTPClient {
                         String fullDestinationPath = destinationPathStr + "/" + fileName;
 
                         vantiqUtil.uploadAsImage = true;
-                        if (!vantiqUtil.uploadToVantiq(f, fullDestinationPath)) {
+                        if (!vantiqUtil.uploadToVantiq(f, fullDestinationPath, contentType)) {
                             rsArray = CreateResponse(FTPClient_IMPORT_DOCUMENT_FAILED_CODE,
                                     FTPClient_IMPORT_UPLOAD_DOCUMENT_FAILED_MESSAGE, fullDestinationPath);
                         } else {

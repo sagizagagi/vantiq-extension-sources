@@ -299,7 +299,7 @@ public class FTPUtil {
                         vu.uploadAsImage = true;
                         String fullDestinationPath = serverEntry.baseDocumentPath + "/" + fileName;
                         File fu = new File(s);
-                        if (vu.uploadToVantiq(fu, fullDestinationPath)) {
+                        if (vu.uploadToVantiq(fu, fullDestinationPath, "image/jpeg")) {
                             Log.info("File " + fileName + " Uploaded to vantiq document");
                         } else {
                             Log.error("File " + fileName + " Failed to upload to Vantiq document");

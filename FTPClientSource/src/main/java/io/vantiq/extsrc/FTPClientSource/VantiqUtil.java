@@ -18,7 +18,7 @@ import java.io.File;
 import java.util.List;
 
 public class VantiqUtil {
-    private static final  Logger LOGGER = LoggerFactory.getLogger(VantiqUtil.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(VantiqUtil.class);
     public String outputDir = null; // Added to remember the output dir for each instance
     public Vantiq vantiq = null; // Added to allow image saving with VANTIQ
     public String sourceName = null;
@@ -80,7 +80,7 @@ public class VantiqUtil {
      * @param fileToUpload File to be uploaded.
      * @param target       The name of the file to be uploaded.
      */
-    public Boolean uploadToVantiq(File fileToUpload, String target) {
+    public Boolean uploadToVantiq(File fileToUpload, String target, String contentType) {
         // Create the response handler for either upload option
         BaseResponseHandler responseHandler = new BaseResponseHandler() {
             @Override
@@ -103,7 +103,7 @@ public class VantiqUtil {
         // Check if we should upload as a document, or image
         if (uploadAsImage) {
             VantiqResponse vr = vantiq.upload(fileToUpload,
-                    "image/jpeg",
+                    contentType, // "application/x-tar", // "image/jpeg",
                     // "objectRecognition/" + sourceName + '/' + target,
                     target,
                     DOCUMENT_RESOURCE_PATH);
