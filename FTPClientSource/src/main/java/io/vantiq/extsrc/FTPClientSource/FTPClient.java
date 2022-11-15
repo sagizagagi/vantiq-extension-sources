@@ -124,7 +124,7 @@ import io.vantiq.extsrc.FTPClientSource.exception.VantiqFTPClientException;
  * and ability to write, append and delete text files to disk .
  */
 public class FTPClient {
-    final static String FTPClient_VERSION = "1.0.0.6";
+    final static String FTPClient_VERSION = "1.0.0.7";
     Instant start = Instant.now();
 
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
@@ -746,7 +746,12 @@ public class FTPClient {
 
                 VantiqUtil vantiqUtil = new VantiqUtil(log);
 
-                String fullSourcePath = basePathStr + "/" + sourcePathStr.replace("public/", "");
+                String fullSourcePath;
+                if (sourcePathStr.indexOf("public/") > -1) {
+                    fullSourcePath = basePathStr + "/" + sourcePathStr.replace("public/", "");
+                } else {
+                    fullSourcePath = basePathStr + "/" + sourcePathStr.replace("public%2F", "");
+                }
 
                 if (!vantiqUtil.downloadFromVantiq(fullSourcePath, destinationPathStr)) {
                     rsArray = CreateResponse(FTPClient_DOWNLOAD_DOCUMENT_FAILED_CODE,
