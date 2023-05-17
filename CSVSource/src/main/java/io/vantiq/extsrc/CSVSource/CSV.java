@@ -56,6 +56,7 @@ import io.vantiq.extsrc.CSVSource.exception.VantiqIOException;
  * "csvConfig": {
  *     "fileFolderPath": "d:/tmp/csv",
  *     "filePrefix": "eje",
+ *     "isFixedFilename": false, 
  *     "fileExtension": "csv",
  *     "maxLinesInEvent": 200,
  *     "schema": {
@@ -129,7 +130,7 @@ import io.vantiq.extsrc.CSVSource.exception.VantiqIOException;
  * and ability to write, append and delete text files to disk .
  */
 public class CSV {
-    final static String CSV_VERSION = "1.0.0.15";
+    final static String CSV_VERSION = "1.0.0.18";
 
     Instant start = Instant.now();
 
@@ -151,6 +152,7 @@ public class CSV {
     Boolean saveToArchive = false;
     String extension = ".csv";
     String filePrefix = "";
+    Boolean isFixedFilename = false;
     FilenameFilter fileFilter;
     String extensionAfterProcessing = ".done";
     boolean deleteAfterProcessing = false;
@@ -218,6 +220,11 @@ public class CSV {
         if (config.get("filePrefix") != null) {
             filePrefix = (String) config.get("filePrefix");
         }
+        if (config.get("isFixedFilename") != null) {
+            isFixedFilename = (boolean) config.get("isFixedFilename");
+        }
+        ;
+
         if (options.get("extensionAfterProcessing") != null) {
             extensionAfterProcessing = (String) options.get("extensionAfterProcessing");
         } else {
@@ -283,6 +290,9 @@ public class CSV {
         fileFilter = (dir, name) -> {
             String lowercaseName = name.toLowerCase();
             String regex = filePrefix.toLowerCase() + "[\\.a-z0-9_-]*" + extension.toLowerCase();
+            if (isFixedFilename) {
+                regex = filePrefix.toLowerCase() + extension.toLowerCase();
+            }
             Boolean b = lowercaseName.matches(regex);
             return b;
         };

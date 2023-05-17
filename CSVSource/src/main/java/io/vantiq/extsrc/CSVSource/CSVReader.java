@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -177,13 +178,18 @@ public class CSVReader {
 
             long fileSize = Files.size(Paths.get(csvFile));
             log.info("file {} attempt:{} fileSize {}", csvFile, 0, fileSize);
+
             for (int t = 0; t < 10 && fileSize < 10; t++) {
                 Thread.sleep(100);
                 fileSize = Files.size(Paths.get(csvFile));
                 log.info("file {} attempt:{} fileSize {}", csvFile, t, fileSize);
             }
 
-            xmlString = new String(Files.readAllBytes(Paths.get(csvFile)));
+            List<String> list = Files.readAllLines(Paths.get(csvFile), StandardCharsets.UTF_8);
+            // list.forEach(System.out::println);
+
+            xmlString = list.toString();
+            // xmlString = new String(Files.readAllBytes(Paths.get(csvFile)));
 
             try {
                 JSONObject json = XML.toJSONObject(xmlString); // converts xml to json
@@ -325,8 +331,8 @@ public class CSVReader {
                 if (extendedLogging) {
                     log.info("TX Last Packet Packet {} Size {} Total num of Records {}", packetIndex, MaxLinesInEvent,
                             numOfRecords);
-                    eof = true;
                 }
+                eof = true;
                 sendNotification(csvFile, "FixedLength", sectionName, packetIndex, eof, file, oClient);
             } else {
                 if (!eof) {
