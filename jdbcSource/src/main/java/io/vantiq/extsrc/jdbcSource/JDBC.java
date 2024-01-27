@@ -235,7 +235,7 @@ public class JDBC {
             System.out.println("Time taken: " + timeElapsed.toMillis() + " milliseconds");
             if (timeElapsed.toMillis() > restartAfterNoRequestFromServer * 1000) {
                 log.error(
-                        "FTPClient timeout exceeded with no communication from server for more then {} seconds",
+                        "JDBCClient timeout exceeded with no communication from server for more then {} seconds",
                         restartAfterNoRequestFromServer);
                 System.exit(1);
             }

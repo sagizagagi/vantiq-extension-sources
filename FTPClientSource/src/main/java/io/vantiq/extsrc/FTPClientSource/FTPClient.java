@@ -705,7 +705,7 @@ public class FTPClient {
     }
 
     /**
-     * The method used to execute a delete file command, triggered by a SELECT on
+     * The method used to download file from Vantiq document to local disk .
      * the respective source from VANTIQ.
      * 
      * @param message
@@ -1202,6 +1202,80 @@ public class FTPClient {
      * @throws VantiqFTPClientException
      */
     public HashMap[] processUpload(ExtensionServiceMessage message) throws VantiqFTPClientException {
+
+        HashMap[] rsArray = null;
+        String checkedAttribute = BODY_KEYWORD;
+        String sourcePathStr = "";
+        String destinationPathStr = "";
+        String name = "default";
+
+        try {
+            Map<String, ?> request = (Map<String, ?>) message.getObject();
+            Map<String, Object> body = (Map<String, Object>) request.get(checkedAttribute);
+
+            FTPServerEntry currEntry = null;
+
+            checkedAttribute = FTPClientHandleConfiguration.SERVER_NAME;
+            if (body.get(FTPClientHandleConfiguration.SERVER_NAME) instanceof String) {
+                name = (String) body.get(FTPClientHandleConfiguration.SERVER_NAME);
+                currEntry = findServer(name);
+            } else {
+                currEntry = defaultServer;
+            }
+
+            Boolean deleteAfterUpload = (Boolean) options
+                    .get(FTPClientHandleConfiguration.DELETE_AFTER_PROCCESING_KEYWORD);
+            checkedAttribute = DELETE_AFTER_UPLOAD_KEYWORD;
+            deleteAfterUpload = SetFieldBooleanValue(checkedAttribute, body, deleteAfterUpload);
+
+            checkedAttribute = LOCAL_PATH_KEYWORD;
+            sourcePathStr = SetFieldStringValue(checkedAttribute, body, currEntry.localFolderPath, true);
+            new File(sourcePathStr).mkdirs();
+
+            Path path = Paths.get(sourcePathStr);
+            if (!path.toFile().exists()) {
+                rsArray = CreateResponse(FTPClient_UPLOAD_FOLDER_FAILED_CODE, FTPClient_UPLOAD_FOLDER_FAILED_MESSAGE,
+                        sourcePathStr);
+            } else {
+                checkedAttribute = REMOTE_PATH_KEYWORD;
+                destinationPathStr = SetFieldStringValue(checkedAttribute, body, currEntry.remoteFolderPath, false);
+
+                FTPUtil ftpUtil = new FTPUtil(log);
+
+                if (!ftpUtil.uploadFolder(currEntry.server, currEntry.port, currEntry.username, currEntry.password,
+                        destinationPathStr, sourcePathStr, deleteAfterUpload, currEntry.connectTimeout)) {
+                    rsArray = CreateResponse(FTPClient_UPLOAD_FOLDER_FAILED_CODE,
+                            FTPClient_UPLOAD_FOLDER_FAILED_MESSAGE, "[" + name + "] " + sourcePathStr);
+                } else {
+                    rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_SUCCESS_FOLDER_UPLOADED_MESSAGE,
+                            "[" + name + "] " + sourcePathStr);
+                }
+            }
+
+            return rsArray;
+        } catch (VantiqFTPClientException exv) {
+            throw exv;
+        } catch (Exception ex) {
+            if (checkedAttribute != "") {
+                throw new VantiqFTPClientException(
+                        String.format("Illegal request structure , attribute %s doesn't exist", checkedAttribute), ex);
+            } else {
+                throw new VantiqFTPClientException("General Error", ex);
+            }
+        } finally {
+
+        }
+    }
+
+    /**
+     * The method used to upload file to remote ftp using ssl ( SFTP)
+     * NOTE : This method is not tested yet
+     * 
+     * @param message
+     * @return
+     * @throws VantiqFTPClientException
+     */
+    public HashMap[] processSFTPUpload(ExtensionServiceMessage message) throws VantiqFTPClientException {
 
         HashMap[] rsArray = null;
         String checkedAttribute = BODY_KEYWORD;

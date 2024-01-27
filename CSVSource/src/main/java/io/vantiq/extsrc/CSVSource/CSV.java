@@ -130,7 +130,7 @@ import io.vantiq.extsrc.CSVSource.exception.VantiqIOException;
  * and ability to write, append and delete text files to disk .
  */
 public class CSV {
-    final static String CSV_VERSION = "1.0.0.18";
+    final static String CSV_VERSION = "1.0.0.19";
 
     Instant start = Instant.now();
 
@@ -367,7 +367,7 @@ public class CSV {
                         System.out.println("Time taken: " + timeElapsed.toMillis() + " milliseconds");
                         if (timeElapsed.toMillis() > restartAfterNoRequestFromServer * 1000) {
                             log.error(
-                                    "FTPClient timeout exceeded with no communication from server for more then {} seconds",
+                                    "CSVClient timeout exceeded with no communication from server for more then {} seconds",
                                     restartAfterNoRequestFromServer);
                             System.exit(1);
                         }
