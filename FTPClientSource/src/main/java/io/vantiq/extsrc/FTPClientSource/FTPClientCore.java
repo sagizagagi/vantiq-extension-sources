@@ -58,6 +58,9 @@ public class FTPClientCore {
 
     private static final String SYNCH_LOCK = "synchLock";
 
+    final static int MAX_CONNECT_FAILURES_ALLOWED = 10;
+    int numberOfCommunicationFailures = 0;
+
     /**
      * Creates a new FTPClientCore with the settings given.
      * 
@@ -228,6 +231,24 @@ public class FTPClientCore {
                         sendDataFromQuery(queryArray, message);
                     }
                         break;
+                    case "resizeimage": {
+                        log.warn("rx resize request");
+                        HashMap[] queryArray = localFTPClient.processResizeImage(message);
+                        sendDataFromQuery(queryArray, message);
+                    }
+                        break;
+                    case "cleanlocal": {
+                        log.warn("rx cleanlocal request");
+                        HashMap[] queryArray = localFTPClient.processCleanLocal(message);
+                        sendDataFromQuery(queryArray, message);
+                    }
+                        break;
+                    case "renamelocalfolder": {
+                        log.warn("rx renamelocalFolder request");
+                        HashMap[] queryArray = localFTPClient.processRenameLocalFolder(message);
+                        sendDataFromQuery(queryArray, message);
+                    }
+                        break;
 
                     default:
                         log.error("Unrecognized op :" + opString);
@@ -380,13 +401,28 @@ public class FTPClientCore {
             log.error("Failed to connect to all sources.");
             if (!client.isOpen()) {
                 log.error("Failed to connect to server url '{}'.", targetVantiqServer);
+                numberOfCommunicationFailures++;
             } else if (!client.isAuthed()) {
                 log.error("Failed to authenticate within {} seconds using the given authentication data.", timeout);
             } else {
                 log.error("Failed to connect within {} seconds", timeout);
             }
+
+            if (numberOfCommunicationFailures > MAX_CONNECT_FAILURES_ALLOWED) {
+                log.error(
+                        "FTPClient Exceeded number of continues network failures {} , restarting ",
+                        numberOfCommunicationFailures);
+                System.exit(1);
+            } else {
+                log.error(
+                        "FTPClient number of continues network failures increased to {} max is {} ",
+                        numberOfCommunicationFailures, MAX_CONNECT_FAILURES_ALLOWED);
+
+            }
+
             return false;
         }
+        numberOfCommunicationFailures = 0;
         return true;
     }
 }

@@ -57,6 +57,9 @@ public class CSVCore {
 
     private static final String SYNCH_LOCK = "synchLock";
 
+    final static int MAX_CONNECT_FAILURES_ALLOWED = 10;
+    int numberOfCommunicationFailures = 0;
+
     /**
      * Creates a new CSVCore with the settings given.
      * 
@@ -367,13 +370,29 @@ public class CSVCore {
             log.error("Failed to connect to all sources.");
             if (!client.isOpen()) {
                 log.error("Failed to connect to server url '{}'.", targetVantiqServer);
+                numberOfCommunicationFailures++;
+
             } else if (!client.isAuthed()) {
                 log.error("Failed to authenticate within {} seconds using the given authentication data.", timeout);
             } else {
                 log.error("Failed to connect within {} seconds", timeout);
             }
+
+            if (numberOfCommunicationFailures > MAX_CONNECT_FAILURES_ALLOWED) {
+                log.error(
+                        "Exceeded number of continues network failures {} , restarting ",
+                        numberOfCommunicationFailures);
+                System.exit(1);
+            } else {
+                log.error(
+                        "number of continues network failures increased to {} max is {} ",
+                        numberOfCommunicationFailures, MAX_CONNECT_FAILURES_ALLOWED);
+
+            }
+
             return false;
         }
+        numberOfCommunicationFailures = 0;
         return true;
     }
 }

@@ -15,11 +15,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -33,6 +36,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import javax.imageio.ImageIO;
+
 import org.apache.commons.net.ftp.FTPFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +46,11 @@ import java.time.Duration;
 import io.vantiq.extjsdk.ExtensionServiceMessage;
 import io.vantiq.extjsdk.ExtensionWebSocketClient;
 import io.vantiq.extsrc.FTPClientSource.exception.VantiqFTPClientException;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
 
 /**
  * Implementing WatchService based on configuration given in FTPClientConfig in
@@ -124,7 +134,7 @@ import io.vantiq.extsrc.FTPClientSource.exception.VantiqFTPClientException;
  * and ability to write, append and delete text files to disk .
  */
 public class FTPClient {
-    final static String FTPClient_VERSION = "1.0.0.7";
+    final static String FTPClient_VERSION = "1.0.0.9";
     Instant start = Instant.now();
 
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
@@ -170,6 +180,8 @@ public class FTPClient {
     private static final String TEXT_KEYWORD = "text";
     private static final String WORKFOLDER_KEYWORD = "WorkFolderPath";
     private static final String CONTENT_TYPE_KEYWORD = "contentType";
+    private static final String RESIZE_HEIGHT = "resizeHeight";
+    private static final String RESIZE_WIDTH = "resizeWidth";
 
     FTPServerEntry defaultServer = new FTPServerEntry();
     List<FTPServerEntry> serverList;
@@ -180,8 +192,10 @@ public class FTPClient {
     public static String FTPClient_CHECK_COMM_NONAME_FAILED_MESSAGE = "connect failure";
     public static String FTPClient_UPLOAD_FOLDER_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.uploadFolderFailure";
     public static String FTPClient_UPLOAD_FOLDER_FAILED_MESSAGE = "Upload folder failure";
-    public static String FTPClient_CLEAN_FOLDER_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.cleanFolderFailure";
-    public static String FTPClient_CLEAN_FOLDER_FAILED_MESSAGE = "clean folder failure";
+    public static String FTPClient_CLEAN_REMOTE_FOLDER_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.cleanRemoteFolderFailure";
+    public static String FTPClient_CLEAN_REMOTE_FOLDER_FAILED_MESSAGE = "clean remote folder failure";
+    public static String FTPClient_RENAME_LOCAL_FOLDER_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.renameLocalFolderFailure";
+    public static String FTPClient_RENAME_LOCAL_FOLDER_FAILED_MESSAGE = "rename local folder failure";
     public static String FTPClient_DOWNLOAD_FOLDER_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.downloadFolderFailure";
     public static String FTPClient_DOWNLOAD_FOLDER_FAILED_MESSAGE = "Download destination folder failure (does not exists)";
     public static String FTPClient_DOWNLOAD_DOCUMENT_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.downloadDocumentFailure";
@@ -195,6 +209,13 @@ public class FTPClient {
     public static String FTPClient_IMPORT_UPLOAD_DOCUMENT_FAILED_MESSAGE = "Import upload document failure";
     public static String FTPClient_IMPORT_DOCUMENT_SOURCE_MISSING_MESSAGE = "Must supply source server URL , source server token and SourceServerPath";
     public static String FTPClient_IMPORT_DOCUMENT_FILE_MISSING_MESSAGE = "Must supply File name and WorkFolderPath to import";
+
+    public static String FTPClient_SUCCESS_RESIZE_DOCUMENT_MESSAGE = "Resize image finished successfully";
+    public static String FTPClient_RESIZE_DOCUMENT_FAILED_CODE = "io.vantiq.extsrc.FTPClientsource.resizeDocumentFailure";
+    public static String FTPClient_RESIZE_DOWNLOAD_DOCUMENT_FAILED_MESSAGE = "Resize download document failure";
+    public static String FTPClient_RESIZE_UPLOAD_DOCUMENT_FAILED_MESSAGE = "Resize upload document failure";
+    public static String FTPClient_RESIZE_DOCUMENT_MISSING_MESSAGE = "Must supply source server URL , source server token and SourceServerPath";
+    public static String FTPClient_RESIZE_FOLDER_FAILED_MESSAGE = "Download destination folder failure (does not exists)";
 
     public static String FTPClient_UPLOAD_DOCUMENT_DESTINATION_MISSING_MESSAGE = "Must supply documentServerPath server URL ,documentToken and documentServer";
 
@@ -214,7 +235,10 @@ public class FTPClient {
     public static String FTPClient_SUCCESS_CODE = "io.vantiq.extsrc.FTPClientsource.success";
     public static String FTPClient_SUCCESS_FOLDER_UPLOADED_MESSAGE = "Folder uploaded Successfully";
     public static String FTPClient_SUCCESS_FOLDER_DOWNLOADED_MESSAGE = "Folder downloaded Successfully";
-    public static String FTPClient_SUCCESS_FOLDER_CLEANED_MESSAGE = "Folder cleaned Successfully";
+    public static String FTPClient_SUCCESS_REMOTE_FOLDER_CLEANED_MESSAGE = "Remote folder cleaned Successfully";
+    public static String FTPClient_SUCCESS_LOCAL_FOLDER_CLEANED_MESSAGE = "Local folder cleaned Successfully";
+    public static String FTPClient_SUCCESS_RENAME_LOCAL_FOLDER_CLEANED_MESSAGE = "Local folder renamed Successfully";
+
     public static String FTPClient_SUCCESS_CHECK_COMM_MESSAGE = "communication extablished Successfully";
     public static String FTPClient_SUCCESS_IMAGE_DOWNLOADED_MESSAGE = "Image downloaded Successfully";
     public static String FTPClient_SUCCESS_IMAGE_UPLOADED_MESSAGE = "Image uploaded Successfully";
@@ -1048,7 +1072,7 @@ public class FTPClient {
     }
 
     /**
-     * The method used to execute an upload imgae command, triggered by a SELECT on
+     * The method used to execute an upload image command, triggered by a SELECT on
      * the respective source from VANTIQ.
      * 
      * @param message
@@ -1137,6 +1161,147 @@ public class FTPClient {
      * @return
      * @throws VantiqFTPClientException
      */
+    public HashMap[] processRenameLocalFolder(ExtensionServiceMessage message) throws VantiqFTPClientException {
+        HashMap[] rsArray = null;
+        String checkedAttribute = BODY_KEYWORD;
+        String destinationPathStr = "";
+        int ageInDays = 0;
+        String name;
+
+        try {
+            Map<String, ?> request = (Map<String, ?>) message.getObject();
+            Map<String, Object> body = (Map<String, Object>) request.get(BODY_KEYWORD);
+
+            FTPServerEntry currEntry = null;
+
+            checkedAttribute = FTPClientHandleConfiguration.SERVER_NAME;
+            if (body.get(FTPClientHandleConfiguration.SERVER_NAME) instanceof String) {
+                name = (String) body.get(FTPClientHandleConfiguration.SERVER_NAME);
+                currEntry = findServer(name);
+            } else {
+                currEntry = defaultServer;
+            }
+
+            checkedAttribute = LOCAL_PATH_KEYWORD;
+            String localFolderPathStr = SetFieldStringValue(checkedAttribute, body, "", false);
+            File folder = new File(localFolderPathStr);
+
+            checkedAttribute = REMOTE_PATH_KEYWORD;
+            String newFolderPathStr = SetFieldStringValue(checkedAttribute, body, "", false);
+            File newfolder = new File(folder.getParent(), newFolderPathStr);
+
+            if (folder.renameTo(newfolder)) {
+                rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_SUCCESS_RENAME_LOCAL_FOLDER_CLEANED_MESSAGE,
+                        destinationPathStr);
+            } else {
+                rsArray = CreateResponse(FTPClient_RENAME_LOCAL_FOLDER_FAILED_CODE,
+                        FTPClient_RENAME_LOCAL_FOLDER_FAILED_MESSAGE,
+                        destinationPathStr);
+
+            }
+
+            return rsArray;
+        } catch (InvalidPathException exp) {
+            throw new VantiqFTPClientException(String.format("Path %s not exist", destinationPathStr), exp);
+        } catch (VantiqFTPClientException exv) {
+            throw exv;
+        } catch (Exception ex) {
+            if (checkedAttribute != "") {
+                throw new VantiqFTPClientException(
+                        String.format("Illegal request structure , attribute %s doesn't exist", checkedAttribute), ex);
+            } else {
+                throw new VantiqFTPClientException("General Error", ex);
+            }
+        }
+    }
+
+    /**
+     * The method used to execute a create file command, triggered by a SELECT on
+     * the respective source from VANTIQ.
+     * 
+     * @param message
+     * @return
+     * @throws VantiqFTPClientException
+     */
+    public HashMap[] processCleanLocal(ExtensionServiceMessage message) throws VantiqFTPClientException {
+        HashMap[] rsArray = null;
+        String checkedAttribute = BODY_KEYWORD;
+        String destinationPathStr = "";
+        int ageInDays = 0;
+        String name;
+
+        try {
+            Map<String, ?> request = (Map<String, ?>) message.getObject();
+            Map<String, Object> body = (Map<String, Object>) request.get(BODY_KEYWORD);
+
+            FTPServerEntry currEntry = null;
+
+            // checkedAttribute = FTPClientHandleConfiguration.SERVER_NAME;
+            // if (body.get(FTPClientHandleConfiguration.SERVER_NAME) instanceof String) {
+            // name = (String) body.get(FTPClientHandleConfiguration.SERVER_NAME);
+            // currEntry = findServer(name);
+            // } else {
+            // currEntry = defaultServer;
+            // }
+
+            checkedAttribute = LOCAL_PATH_KEYWORD;
+            String localFolderPathStr = SetFieldStringValue(checkedAttribute, body, "", false);
+            File folder = new File(localFolderPathStr);
+
+            if (folder.exists() && folder.isDirectory()) {
+                File[] files = folder.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.isDirectory()) {
+                            deleteFolder(file);
+                        } else {
+                            // If the file is a regular file, delete it
+                            file.delete();
+                        }
+                    }
+                }
+            }
+            rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_SUCCESS_LOCAL_FOLDER_CLEANED_MESSAGE,
+                    destinationPathStr);
+            return rsArray;
+        } catch (InvalidPathException exp) {
+            throw new VantiqFTPClientException(String.format("Path %s not exist", destinationPathStr), exp);
+            // } catch (VantiqFTPClientException exv) {
+            // throw exv;
+        } catch (Exception ex) {
+            if (checkedAttribute != "") {
+                throw new VantiqFTPClientException(
+                        String.format("Illegal request structure , attribute %s doesn't exist", checkedAttribute), ex);
+            } else {
+                throw new VantiqFTPClientException("General Error", ex);
+            }
+        }
+    }
+
+    private static void deleteFolder(File folder) {
+        File[] files = folder.listFiles();
+
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    deleteFolder(file);
+                } else {
+                    file.delete();
+                }
+            }
+        }
+
+        folder.delete();
+    }
+
+    /**
+     * The method used to execute a create file command, triggered by a SELECT on
+     * the respective source from VANTIQ.
+     * 
+     * @param message
+     * @return
+     * @throws VantiqFTPClientException
+     */
     public HashMap[] processClean(ExtensionServiceMessage message) throws VantiqFTPClientException {
         HashMap[] rsArray = null;
         String checkedAttribute = BODY_KEYWORD;
@@ -1170,10 +1335,11 @@ public class FTPClient {
 
             if (!ftpUtil.cleanRemoteFolder(currEntry.server, currEntry.port, currEntry.username, currEntry.password,
                     destinationPathStr, ageInDays, currEntry.connectTimeout)) {
-                rsArray = CreateResponse(FTPClient_CLEAN_FOLDER_FAILED_CODE, FTPClient_CLEAN_FOLDER_FAILED_MESSAGE,
+                rsArray = CreateResponse(FTPClient_CLEAN_REMOTE_FOLDER_FAILED_CODE,
+                        FTPClient_CLEAN_REMOTE_FOLDER_FAILED_MESSAGE,
                         destinationPathStr);
             } else {
-                rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_SUCCESS_FOLDER_CLEANED_MESSAGE,
+                rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_SUCCESS_REMOTE_FOLDER_CLEANED_MESSAGE,
                         destinationPathStr);
 
             }
@@ -1265,6 +1431,228 @@ public class FTPClient {
         } finally {
 
         }
+    }
+
+    /**
+     * The method used to resize image exists in document and reupload with name
+     * containing the new dimensions.
+     * NOTE : This method is not tested yet
+     * 
+     * @param message
+     * @return
+     * @throws VantiqFTPClientException
+     */
+    public HashMap[] processResizeImage(ExtensionServiceMessage message) throws VantiqFTPClientException {
+        HashMap[] rsArray = null;
+        String checkedAttribute = BODY_KEYWORD;
+        String sourcePathStr = "";
+        String destinationPathStr = "";
+        String name = "default";
+        int newWidth = 0;
+        int newHeight = 0;
+
+        try {
+            Map<String, ?> request = (Map<String, ?>) message.getObject();
+            Map<String, Object> body = (Map<String, Object>) request.get(checkedAttribute);
+
+            checkedAttribute = FTPClientHandleConfiguration.DOCUMENT_SERVER;
+            String documentServer = SetFieldStringValue(checkedAttribute, body, defaultServer.documentServer, false); // body.get(checkedAttribute).toString();
+
+            checkedAttribute = FTPClientHandleConfiguration.DOCUMENT_SERVER_TOKEN;
+            String token = SetFieldStringValue(checkedAttribute, body, defaultServer.documentServerToken, false);
+
+            checkedAttribute = FTPClientHandleConfiguration.SOURCE_DOCUMENT_SERVER_PATH;
+            String sourceDocumentServerPath = (String) SetFieldStringValue(checkedAttribute, body,
+                    defaultServer.sourceDocumentServerPath, true);
+
+            String basePathStr = sourceDocumentServerPath;
+
+            checkedAttribute = REMOTE_PATH_KEYWORD;
+            sourcePathStr = SetFieldStringValue(checkedAttribute, body, "", true);
+
+            checkedAttribute = LOCAL_PATH_KEYWORD;
+            destinationPathStr = SetFieldStringValue(checkedAttribute, body, "", true);
+
+            checkedAttribute = RESIZE_HEIGHT;
+            newHeight = SetFieldIntegerValue(checkedAttribute, body, 0);
+            checkedAttribute = RESIZE_WIDTH;
+            newWidth = SetFieldIntegerValue(checkedAttribute, body, 0);
+            checkedAttribute = "";
+
+            String defaultEncoding = System.getProperty("file.encoding");
+            if (defaultEncoding != "UTF8") {
+                sourcePathStr = new String(sourcePathStr.getBytes(Charset.forName(defaultEncoding)));
+            }
+            File p = new File(destinationPathStr);
+            String p1 = p.getParent();
+            new File(p1).mkdirs();
+
+            if (sourcePathStr == "" || destinationPathStr == "") {
+                rsArray = CreateResponse(FTPClient_RESIZE_DOCUMENT_FAILED_CODE,
+                        FTPClient_RESIZE_DOCUMENT_MISSING_MESSAGE, destinationPathStr);
+            } else {
+
+                VantiqUtil vantiqUtil = new VantiqUtil(log);
+
+                String fullSourcePath;
+                if (sourcePathStr.indexOf("public/") > -1) {
+                    fullSourcePath = basePathStr + "/" + sourcePathStr.replace("public/", "");
+                } else {
+                    fullSourcePath = basePathStr + "/" + sourcePathStr.replace("public%2F", "");
+                }
+
+                if (!vantiqUtil.downloadFromVantiq(fullSourcePath, destinationPathStr)) {
+                    rsArray = CreateResponse(FTPClient_RESIZE_DOCUMENT_FAILED_CODE,
+                            FTPClient_RESIZE_FOLDER_FAILED_MESSAGE, fullSourcePath);
+                } else {
+
+                    // Get the file extension
+                    BufferedImage fileData = readImage(destinationPathStr);
+                    // BufferedImage resizedImage = resizeImage(fileData, newWidth, newHeight);
+                    // SHay clam that the width and height are mixed .
+                    BufferedImage resizedImage = resizeImage(fileData, newHeight, newWidth);
+
+                    String newFilePath = createNewFilePath(destinationPathStr, newWidth, newHeight);
+                    log.info("resizeimage:: after resizing {} to {}", destinationPathStr, newFilePath);
+
+                    saveImage(resizedImage, newFilePath);
+                    log.info("resizeimage:: after save locally to {}", newFilePath);
+
+                    File f = new File(newFilePath);
+                    String newUrl = replaceFileStem(sourcePathStr, newFilePath);
+                    if (!newUrl.startsWith("public/"))
+                        newUrl = "public/" + newUrl;
+
+                    String contentType = "image/" + getFileExtension(newFilePath);
+
+                    VantiqUtil vantiqUtilUpload = new VantiqUtil(log, documentServer, token);
+
+                    vantiqUtilUpload.uploadAsImage = true;
+                    log.info("resizeimage:: attempt to load to {} server {}", newUrl, documentServer);
+                    if (!vantiqUtilUpload.uploadToVantiq(f, newUrl, contentType)) {
+                        rsArray = CreateResponse(FTPClient_IMPORT_DOCUMENT_FAILED_CODE,
+                                FTPClient_RESIZE_UPLOAD_DOCUMENT_FAILED_MESSAGE, newUrl);
+                        log.error("resizeimage:: failed to load {}", newUrl);
+
+                    } else {
+                        rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_SUCCESS_RESIZE_DOCUMENT_MESSAGE,
+                                newUrl);
+                        log.info("resizeimage:: {} loaded successfully", newUrl);
+
+                    }
+                }
+            }
+
+            return rsArray;
+        } catch (Exception ex) {
+            if (checkedAttribute != "") {
+                throw new VantiqFTPClientException(
+                        String.format("resizeimage:: Illegal request structure , attribute %s doesn't exist",
+                                checkedAttribute),
+                        ex);
+            } else {
+                throw new VantiqFTPClientException("General Error", ex);
+            }
+        } finally {
+
+        }
+    }
+
+    private static String replaceFileStem(String originalFileUrl, String newFileName) {
+        try {
+            // Parse the original file URL
+            URI uri = new URI(originalFileUrl);
+            String path = uri.getPath();
+            Path filePath = Paths.get(path);
+            String fileName = filePath.getFileName().toString();
+
+            // Extract stem from the URL
+            String urlStem = fileName.substring(0, fileName.lastIndexOf('.'));
+
+            // Extract the stem from the new filename
+            // String newFileStem = newFileName.substring(0, newFileName.lastIndexOf('.'));
+
+            // Extract the stem from the new filename
+            String newFileStem = Paths.get(newFileName).getFileName().toString().replaceFirst("[.][^.]+$", "");
+            // Replace the filename with the new filename
+            String newPath = path.replace(urlStem, newFileStem);
+
+            // Reconstruct the new file URL
+            return new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), newPath, uri.getQuery(),
+                    uri.getFragment()).toString();
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+            return originalFileUrl; // Return original URL if URI syntax is invalid
+        }
+    }
+
+    private static String getFileExtension(String filePath) {
+        Path path = Paths.get(filePath);
+        String fileName = path.getFileName().toString();
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex == -1) {
+            // No extension found
+            return "";
+        }
+        return fileName.substring(dotIndex + 1);
+    }
+
+    private static BufferedImage readImage(String filePath) throws IOException {
+        return ImageIO.read(new File(filePath));
+    }
+
+    // Method to save image back to disk
+    private static void saveImage(BufferedImage image, String filePath) throws IOException {
+        String extension = getFileExtension(filePath);
+        ImageIO.write(image, extension, new File(filePath));
+        // ImageIO.write(image, "jpg", new File(filePath));
+    }
+
+    // method create the new file path by adding the height and width to the file
+    // name .
+    private static String createNewFilePath(String originalFilePath, int width, int height) {
+        // Parse the original file path
+        Path path = Paths.get(originalFilePath);
+        String fileName = path.getFileName().toString();
+        String extension = "";
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex != -1) {
+            // Extract extension if exists
+            extension = fileName.substring(dotIndex);
+            fileName = fileName.substring(0, dotIndex);
+        }
+
+        // Extract existing dimensions from the file name
+        String[] parts = fileName.split("_");
+        int existingHeight = -1;
+        int existingWidth = -1;
+
+        // Replace existing dimensions with new ones
+        String newDimensions = "_" + height + "_" + width;
+
+        if (parts.length == 3) {
+            // File name contains dimensions in the format "name_height_width"
+            existingHeight = Integer.parseInt(parts[1]);
+            existingWidth = Integer.parseInt(parts[2]);
+            fileName = fileName.replace("_" + existingHeight + "_" + existingWidth, newDimensions);
+        } else {
+            fileName = fileName + newDimensions;
+        }
+
+        // Replace existing dimensions in the file name
+
+        // Reconstruct the new file path
+        String newFileName = fileName + extension;
+        return path.getParent().resolve(newFileName).toString();
+    }
+
+    private static BufferedImage resizeImage(BufferedImage originalImage, int newWidth, int newHeight) {
+        Image resultingImage = originalImage.getScaledInstance(newWidth, newHeight, Image.SCALE_DEFAULT);
+        BufferedImage outputImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2d = outputImage.createGraphics();
+        g2d.drawImage(resultingImage, 0, 0, null);
+        g2d.dispose();
+        return outputImage;
     }
 
     /**
