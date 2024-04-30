@@ -134,7 +134,7 @@ import java.awt.image.BufferedImage;
  * and ability to write, append and delete text files to disk .
  */
 public class FTPClient {
-    final static String FTPClient_VERSION = "1.0.0.9";
+    final static String FTPClient_VERSION = "1.0.0.10";
     Instant start = Instant.now();
 
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());

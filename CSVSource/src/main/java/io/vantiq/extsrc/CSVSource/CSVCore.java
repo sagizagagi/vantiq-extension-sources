@@ -367,11 +367,10 @@ public class CSVCore {
             log.error("Exception occurred while waiting for webSocket connection", e);
         }
         if (!sourcesSucceeded) {
+            numberOfCommunicationFailures++;
             log.error("Failed to connect to all sources.");
             if (!client.isOpen()) {
                 log.error("Failed to connect to server url '{}'.", targetVantiqServer);
-                numberOfCommunicationFailures++;
-
             } else if (!client.isAuthed()) {
                 log.error("Failed to authenticate within {} seconds using the given authentication data.", timeout);
             } else {
@@ -391,8 +390,8 @@ public class CSVCore {
             }
 
             return false;
-        }
-        numberOfCommunicationFailures = 0;
+        } else
+            numberOfCommunicationFailures = 0;
         return true;
     }
 }
