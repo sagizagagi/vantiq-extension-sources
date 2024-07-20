@@ -41,7 +41,7 @@ import io.vantiq.extsrc.jdbcSource.exception.VantiqIOException;
 import io.vantiq.extsrc.jdbcSource.exception.VantiqSQLException;
 
 public class JDBC {
-    final static String JDBC_VERSION = "1.0.0.2";
+    final static String JDBC_VERSION = "1.0.0.3";
     final static String JDBC_SUCCESS_CODE = "io.vantiq.extsrc.jdbcsource.success";
     final static String JDBC_PONG_MESSAGE = "Pong";
 

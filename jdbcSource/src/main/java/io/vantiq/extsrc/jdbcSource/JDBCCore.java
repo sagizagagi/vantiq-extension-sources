@@ -63,6 +63,9 @@ public class JDBCCore {
 
     private static final String SYNCH_LOCK = "synchLock";
 
+    final static int MAX_CONNECT_FAILURES_ALLOWED = 10;
+    int numberOfCommunicationFailures = 0;
+
     /**
      * Stops sending messages to the source and tries to reconnect, closing on a
      * failure
@@ -467,6 +470,7 @@ public class JDBCCore {
             log.error("Exception occurred while waiting for webSocket connection", e);
         }
         if (!sourcesSucceeded) {
+            numberOfCommunicationFailures++;
             log.error("Failed to connect to all sources.");
             if (!client.isOpen()) {
                 log.error("Failed to connect to server url '" + targetVantiqServer + "'.");
@@ -475,8 +479,22 @@ public class JDBCCore {
             } else {
                 log.error("Failed to connect within 10 seconds");
             }
+
+            if (numberOfCommunicationFailures > MAX_CONNECT_FAILURES_ALLOWED) {
+                log.error(
+                        "Exceeded number of continues network failures {} , restarting ",
+                        numberOfCommunicationFailures);
+                System.exit(1);
+            } else {
+                log.error(
+                        "number of continues network failures increased to {} max is {} ",
+                        numberOfCommunicationFailures, MAX_CONNECT_FAILURES_ALLOWED);
+
+            }
+
             return false;
-        }
+        } else
+            numberOfCommunicationFailures = 0;
         return true;
     }
 }
