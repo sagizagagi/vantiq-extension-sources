@@ -38,21 +38,21 @@ dependencies {
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation 'com.google.guava:guava:23.0'
     
-    compile project(':extjsdk')
+    implementation project(':extjsdk')
     
-    compile "org.slf4j:slf4j-api:1.7.25"
-    compile "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
+    implementation "org.slf4j:slf4j-api:1.7.25"
+    implementation "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
     
     // https://mvnrepository.com/artifact/commons-net/commons-net
     implementation group: 'commons-net', name: 'commons-net', version: '3.6'
 
       
     // Used for checking VANTIQ date format behavior with VANTIQ SDK
-    compile 'io.vantiq:vantiq-sdk:1.0.28'
+    implementation 'io.vantiq:vantiq-sdk:1.0.28'
     
     // Use JUnit test framework
-    testCompile 'junit:junit:4.12'
-    testCompile project(path:":extjsdk", configuration:"testArtifacts")
+    testImplementation 'junit:junit:4.12'
+    testImplementation project(path:":extjsdk", configuration:"testArtifacts")
 }
 
 tasks.withType(Test) {

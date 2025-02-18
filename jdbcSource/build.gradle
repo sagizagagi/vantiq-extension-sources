@@ -69,24 +69,24 @@ dependencies {
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation 'com.google.guava:guava:23.0'
     
-    compile project(':extjsdk')
+    implementation project(':extjsdk')
     
-    compile "org.slf4j:slf4j-api:1.7.25"
-    compile "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
+    implementation "org.slf4j:slf4j-api:1.7.25"
+    implementation "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
     
     //  Compiling relevant JDBC Driver .jar file
-    runtime files("${System.env.JDBC_DRIVER_LOC}")
+    runtimeOnly files("${System.env.JDBC_DRIVER_LOC}")
     
     // Used for checking VANTIQ date format behavior with VANTIQ SDK
-    compile 'io.vantiq:vantiq-sdk:1.0.28'
+    implementation 'io.vantiq:vantiq-sdk:1.0.28'
     //compile "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${jacksonVersion}"//2.9.3"	//XML parsing
     //compile "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     implementation 'org.json:json:20180130'
 
     // Use JUnit test framework
-    testCompile 'junit:junit:4.12'
-    testCompile project(path:":extjsdk", configuration:"testArtifacts")
+    testImplementation 'junit:junit:4.12'
+    testImplementation project(path:":extjsdk", configuration:"testArtifacts")
 
     // Used to create a connection pool if asynchronous processing has been specified for publish/query handlers
-    compile group: 'com.zaxxer', name: 'HikariCP', version: '3.3.1'
+    implementation group: 'com.zaxxer', name: 'HikariCP', version: '3.3.1'
 }

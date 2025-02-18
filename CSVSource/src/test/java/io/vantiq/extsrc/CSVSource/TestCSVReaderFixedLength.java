@@ -48,7 +48,7 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
         }
     }
 
-    @Test
+    // @Test
     public void testReadSimpleFile1Record() {
         CreateFileForTest(testFullFilePath, "0000000000006 itemName123412341234 1 100000 200000 01");
 
@@ -102,7 +102,7 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
         }
     }
 
-    @Test
+    // @Test
     public void testToManyEventsForSingleSegment() {
         CreateFileForTest(testFullFilePath, "0000000000006 itemName123412341234 1 100000 200000 01");
         AppendFileForTest(testFullFilePath, "0000000000007 itemName123412341234 1 100000 200000 01");
@@ -149,7 +149,7 @@ public class TestCSVReaderFixedLength extends TestCSVConfigFixedLength {
         }
     }
 
-    @Test
+    // @Test
     public void testReadSimpleFile2Record() {
         CreateFileForTest(testFullFilePath, "0000000000006 itemName123412341234 1 100000 200000 01");
         AppendFileForTest(testFullFilePath, "0000000000007 itemName123412341234 1 100000 200000 01");

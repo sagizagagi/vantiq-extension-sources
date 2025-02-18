@@ -134,8 +134,9 @@ import java.awt.image.BufferedImage;
  * and ability to write, append and delete text files to disk .
  */
 public class FTPClient {
-    final static String FTPClient_VERSION = "1.0.0.10";
+    final static String FTPClient_VERSION = "1.0.0.12";
     Instant start = Instant.now();
+    Instant LastTimerTriggered = Instant.now();
 
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
     // Used to receive configuration information .
@@ -390,6 +391,7 @@ public class FTPClient {
                 @Override
                 public void run() {
                     log.info("TimerTask Start working on existing file in folder {}", remoteFolderPath);
+                    LastTimerTriggered = Instant.now();
                     LookForRemoteFiles(remoteFolderPath);
 
                     if (restartAfterNoRequestFromServer > 0) {
@@ -414,6 +416,8 @@ public class FTPClient {
         } catch (Exception e) {
             log.error("FTPClient failed  ", e);
             reportFTPClientError(e);
+        } finally {
+
         }
     }
 
@@ -536,6 +540,16 @@ public class FTPClient {
     public HashMap[] ping(ExtensionServiceMessage message) throws VantiqFTPClientException {
         HashMap[] rsArray = null;
         try {
+            Instant end = Instant.now();
+            Duration timeElapsed = Duration.between(LastTimerTriggered, end);
+            System.out.println("Time from last timer: " + timeElapsed.toMillis() + " milliseconds");
+            if (timeElapsed.toMillis() > pollTime * 3) {
+                log.error(
+                        "FTPClient timeout exceeded between timer task activation {} seconds",
+                        pollTime * 3 / 1000);
+                System.exit(1);
+            }
+
             rsArray = CreateResponse(FTPClient_SUCCESS_CODE, FTPClient_PONG_MESSAGE, FTPClient_VERSION);
             return rsArray;
         } catch (Exception ex) {

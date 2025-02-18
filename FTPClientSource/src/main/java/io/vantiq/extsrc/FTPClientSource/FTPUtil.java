@@ -137,16 +137,30 @@ public class FTPUtil {
         try {
 
             Log.info("Start downloading file " + remoteFullFilePath + " to " + destinationFullPath);
-            OutputStream outputStream1 = new BufferedOutputStream(new FileOutputStream(destinationFullPath));
-            boolean done = ftpClient.retrieveFile(remoteFullFilePath, outputStream1);
-            outputStream1.close();
-            if (done) {
-                Log.info("File " + remoteFullFilePath + " downloaded successfully to " + destinationFullPath);
-            } else {
-                Log.error("File " + remoteFullFilePath + " failed to downloaded to " + destinationFullPath);
+
+            try (OutputStream outputStream = new BufferedOutputStream(new FileOutputStream(destinationFullPath))) {
+                boolean done = ftpClient.retrieveFile(remoteFullFilePath, outputStream);
+                if (done) {
+                    Log.info("File " + remoteFullFilePath + " downloaded successfully to " + destinationFullPath);
+                } else {
+                    Log.error("File " + remoteFullFilePath + " failed to downloaded to " + destinationFullPath);
+                }
+                return done;
             }
 
-            return done;
+            /*
+             * OutputStream outputStream1 = new BufferedOutputStream(new
+             * FileOutputStream(destinationFullPath));
+             * boolean done = ftpClient.retrieveFile(remoteFullFilePath, outputStream1);
+             * outputStream1.close();
+             * if (done) {
+             * Log.info("File " + remoteFullFilePath + " downloaded successfully to " +
+             * destinationFullPath);
+             * } else {
+             * Log.error("File " + remoteFullFilePath + " failed to downloaded to " +
+             * destinationFullPath);
+             * }
+             */
 
         } catch (IOException ex) {
             Log.error("Error: " + ex.getMessage());

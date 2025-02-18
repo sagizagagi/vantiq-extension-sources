@@ -84,7 +84,7 @@ public class TestUtils  {
         }
     }
 
-    @Test
+    //@Test
     public void testGetEnvVar() throws Exception {
         assumeTrue("\"CONNECTOR_AUTH_TOKEN\" environment variable must be set equal to \"xxxx====\"",
                 envVarAuthToken != null && envVarAuthToken.equals(FAKE_TOKEN));

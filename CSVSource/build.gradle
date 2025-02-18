@@ -5,6 +5,9 @@ apply plugin: 'java'
 apply plugin: 'application'
 
 sourceCompatibility = 1.8
+ext {
+    jacksonVersion = '2.9.3'
+}
 
 repositories {
     mavenCentral()
@@ -37,27 +40,36 @@ applicationDistribution.from("src/main/resources") {
 dependencies {
     // https://mvnrepository.com/artifact/com.sun.net.httpserver/http
     implementation group: 'com.sun.net.httpserver', name: 'http', version: '20070405'
-     compile 'com.sun.net.httpserver:http:20070405'
-     compile 'org.apache.commons:commons-text:1.9' 
+     //compile 'com.sun.net.httpserver:http:20070405'
+     //compile 'org.apache.commons:commons-text:1.9' 
+     implementation 'com.sun.net.httpserver:http:20070405'
+     implementation 'org.apache.commons:commons-text:1.9' 
+
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
 
 
     // This dependency is used internally, and not exposed to consumers on their own compile classpath.
     implementation 'com.google.guava:guava:23.0'
     
-    compile project(':extjsdk')
+    // compile project(':extjsdk')
     
-    compile "org.slf4j:slf4j-api:1.7.25"
-    compile "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
+    // compile "org.slf4j:slf4j-api:1.7.25"
+    // compile "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
+    implementation project(':extjsdk')
+    
+    implementation "org.slf4j:slf4j-api:1.7.25"
+    implementation "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
 
     implementation 'org.json:json:20180130'
     
       
     // Used for checking VANTIQ date format behavior with VANTIQ SDK
-    compile 'io.vantiq:vantiq-sdk:1.0.28'
+//    compile 'io.vantiq:vantiq-sdk:1.0.28'
+    implementation 'io.vantiq:vantiq-sdk:1.0.28'
     
     // Use JUnit test framework
-    testCompile 'junit:junit:4.12'
-    testCompile project(path:":extjsdk", configuration:"testArtifacts")
+    testImplementation 'junit:junit:4.12'
+    testImplementation project(path:":extjsdk", configuration:"testArtifacts")
 }
 
 tasks.withType(Test) {

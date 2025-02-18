@@ -13,7 +13,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +36,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import javax.print.attribute.standard.DateTimeAtCompleted;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -130,9 +131,10 @@ import io.vantiq.extsrc.CSVSource.exception.VantiqIOException;
  * and ability to write, append and delete text files to disk .
  */
 public class CSV {
-    final static String CSV_VERSION = "1.0.0.22";
+    final static String CSV_VERSION = "1.0.0.26";
 
     Instant start = Instant.now();
+    Instant LastTimerTriggered = Instant.now();
 
     Logger log = LoggerFactory.getLogger(this.getClass().getCanonicalName());
     // Used to receive configuration informatio .
@@ -358,6 +360,7 @@ public class CSV {
                 @Override
                 public void run() {
                     log.info("TimerTask Start working on existing file in folder {}", tmpFileFolderPath);
+                    LastTimerTriggered = Instant.now();
                     handleExistingFiles(tmpFileFolderPath);
 
                     if (restartAfterNoRequestFromServer > 0) {
@@ -428,13 +431,17 @@ public class CSV {
 
                     if (!currentlyProcessingFiles.contains(fullFileName)) {
 
-                        synchronized (this) {
-                            currentlyProcessingFiles.add(fullFileName);
+                        try {
+                            synchronized (this) {
+                                currentlyProcessingFiles.add(fullFileName);
+                            }
+                            executeFileInPool(fullFileName, config);
+                        } finally {
+                            synchronized (this) {
+                                currentlyProcessingFiles.remove(fullFileName);
+                            }
                         }
-                        executeFileInPool(fullFileName, config);
-                        synchronized (this) {
-                            currentlyProcessingFiles.remove(fullFileName);
-                        }
+
                     } else {
                         log.warn("already processing file {}", fullFileName);
                     }
@@ -684,6 +691,15 @@ public class CSV {
         String checkedAttribute = SECTION_KEYWORD;
         String pathStr = "";
         try {
+            Instant end = Instant.now();
+            Duration timeElapsed = Duration.between(LastTimerTriggered, end);
+            System.out.println("Time from last timer: " + timeElapsed.toMillis() + " milliseconds");
+            if (timeElapsed.toMillis() > pollTime * 3) {
+                log.error(
+                        "CSVClient timeout exceeded between timer task activation {} seconds",
+                        pollTime * 3 / 1000);
+                System.exit(1);
+            }
 
             rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_PONG_MESSAGE, CSV.CSV_VERSION);
             return rsArray;

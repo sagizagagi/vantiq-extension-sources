@@ -163,8 +163,10 @@ subprojects {
     dependencies {
         provided 'org.projectlombok:lombok:1.16.18'
 
-        compile 'org.codehaus.groovy:groovy-all:2.4.11'
-        compile "org.slf4j:slf4j-api:${slf4jApiVersion}"
+//        compile 'org.codehaus.groovy:groovy-all:2.4.11'
+//        compile "org.slf4j:slf4j-api:${slf4jApiVersion}"
+        implementation  'org.codehaus.groovy:groovy-all:2.4.11'
+        implementation  "org.slf4j:slf4j-api:${slf4jApiVersion}"
     }
 
     compileGroovy {
@@ -260,14 +262,18 @@ task jacocoRootReport(type: JacocoReport, group: 'Coverage reports') {
 
     dependsOn(publishedProjects.test)
 
-    additionalSourceDirs = files(publishedProjects.sourceSets.main.allSource.srcDirs)
-    sourceDirectories = files(publishedProjects.sourceSets.main.allSource.srcDirs)
-    classDirectories = files(publishedProjects.sourceSets.main.output)
+    //additionalSourceDirs = files(publishedProjects.sourceSets.main.allSource.srcDirs)
+    additionalSourceDirs.from(files(publishedProjects.sourceSets.main.allSource.srcDirs))
+    //sourceDirectories = files(publishedProjects.sourceSets.main.allSource.srcDirs)
+    sourceDirectories.from(files(publishedProjects.sourceSets.main.allSource.srcDirs))  // Appending directories
+    //classDirectories = files(publishedProjects.sourceSets.main.output)
+    classDirectories.from((publishedProjects.sourceSets.main.output))
     // disable this report unless jacocoReport is specified
     if (rootProject.hasProperty('jacocoReport')) {
         executionData = files(publishedProjects.jacocoTestReport.executionData)
     } else {
-        executionData = files('dummy')  // just create empty list if property not specified
+//        executionData = files('dummy')  // just create empty list if property not specified
+        executionData.from(files('dummy'))  // just create empty list if property not specified
     }
 
     doFirst {

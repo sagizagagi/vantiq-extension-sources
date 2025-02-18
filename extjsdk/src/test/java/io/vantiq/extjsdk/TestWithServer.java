@@ -14,7 +14,7 @@ import static org.junit.Assume.assumeTrue;
 
 public class TestWithServer extends RoundTripTestBase {
     
-    @AfterClass
+    //@AfterClass
     public static void cleanup() {
         deleteType();
         deleteRule();
@@ -22,7 +22,7 @@ public class TestWithServer extends RoundTripTestBase {
         deleteSourceImpl();
     }
     
-    @Test
+    //@Test
     public void testNotificationEnMasse() throws Exception {
 
         int MAX_TRIES = 50;

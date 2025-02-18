@@ -70,17 +70,26 @@ artifacts {
 }
 
 dependencies {
-    compile "org.slf4j:slf4j-api:1.7.25"
-    compile "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
+    // compile "org.slf4j:slf4j-api:1.7.25"
+    // compile "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
 
 
-    compile "com.squareup.okhttp3:okhttp:${okhttpVersion}"
-    compile "com.squareup.okhttp3:okhttp-ws:${okhttpVersion}"
-    compile "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    // compile "com.squareup.okhttp3:okhttp:${okhttpVersion}"
+    // compile "com.squareup.okhttp3:okhttp-ws:${okhttpVersion}"
+    // compile "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
 
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+    implementation "org.slf4j:slf4j-api:1.7.25"
+    implementation "org.apache.logging.log4j:log4j-slf4j-impl:2.11.0"
+
+
+    implementation "com.squareup.okhttp3:okhttp:${okhttpVersion}"
+    implementation "com.squareup.okhttp3:okhttp-ws:${okhttpVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+//    implementation 'org.json:json:20180130'
+
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
     // Used for uploading documents (images) to VANTIQ with VANTIQ SDK
-    testCompile 'io.vantiq:vantiq-sdk:1.0.28'
+    testImplementation 'io.vantiq:vantiq-sdk:1.0.28'
 
     // Used to create EvictingQueue for failed messages queue
     implementation 'com.google.guava:guava:23.0'

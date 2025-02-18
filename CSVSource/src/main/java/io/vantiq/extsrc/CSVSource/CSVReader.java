@@ -9,12 +9,9 @@ package io.vantiq.extsrc.CSVSource;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -34,7 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import groovy.ui.Console;
 import io.vantiq.extjsdk.ExtensionWebSocketClient;
 import io.vantiq.extsrc.CSVSource.exception.VantiqCSVException;
 
@@ -111,6 +107,15 @@ public class CSVReader {
             if (schema.get(field) != null) {
                 field = schema.get(field);
             }
+        }
+        return field;
+    }
+
+    static String setFieldNameByIndex(int i, List<Map.Entry<String, String>> schemaList) {
+        String field = String.format("field%d", i);
+        if (schemaList != null && schemaList.size() > i) {
+            Map.Entry<String, String> schema = schemaList.get(i);
+            field = schema.getKey();
         }
         return field;
     }
@@ -349,6 +354,28 @@ public class CSVReader {
         return null;
     }
 
+    private static String removeCommasInQuotedSubstring(String input) {
+        StringBuilder result = new StringBuilder();
+        boolean inQuotes = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if (c == '"') {
+                // Check if the quote is before or after a comma
+                if (i > 0 && input.charAt(i - 1) == ',' || i < input.length() - 1 && input.charAt(i + 1) == ',') {
+                    inQuotes = !inQuotes; // Toggle the inQuotes flag
+                }
+            }
+            if (inQuotes && c == ',') {
+                result.append(" "); // Replace commas inside quotes with a blank space
+            } else {
+                result.append(c); // Otherwise, append the character as is
+            }
+        }
+
+        return result.toString();
+    }
+
     /**
      * Responsible for reading the lines from the file and converting it events to
      * be sent to server. Each line is split by the delimiter and then, based on the
@@ -405,19 +432,23 @@ public class CSVReader {
         int MaxLinesInEvent = (int) config.get(MAX_LINES_IN_EVENT);
         ArrayList<Map<String, String>> file = new ArrayList<Map<String, String>>();
 
+        List<Map.Entry<String, String>> schemaEntryList = new ArrayList<>(schema.entrySet());
+
         try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(csvFile), charSet))) {
             numOfRecords = 0;
             while ((line = br.readLine()) != null) {
 
                 if (!skipFirstLine) {
                     // use comma as separator
+                    line = removeCommasInQuotedSubstring(line);
+
                     String[] values = line.split(delimiter);
                     Map<String, String> lineValues = new HashMap<String, String>();
 
                     int schemaFieldIndex = 0;
                     for (int i = 0; i < values.length; i++) {
                         if (values[i].length() != 0) {
-                            String currField = setFieldName(schemaFieldIndex, schema);
+                            String currField = setFieldNameByIndex(schemaFieldIndex, schemaEntryList);
 
                             String t = values[i];
                             FieldInfo o = FieldInfo.Create(currField, schema);
@@ -426,7 +457,7 @@ public class CSVReader {
                                 byte[] valueBytes = values[i].getBytes();
                                 t = new String(valueBytes, o.charSet).trim();
                             } else {
-                                t = values[i].trim();
+                                t = values[i].replaceAll("^\"|\"$", "").trim();
                             }
 
                             if (o.reversed) {
@@ -446,6 +477,9 @@ public class CSVReader {
                         }
                     }
 
+                    // lineValues.forEach((key, value) -> System.out.printf("%s = %s%n", key,
+                    // value));
+
                     file.add(lineValues);
                     numOfRecords++;
 
@@ -455,9 +489,9 @@ public class CSVReader {
                                     MaxLinesInEvent,
                                     numOfRecords);
                         }
-                        System.out.print("**** Before senNotification");
+                        // System.out.print("**** Before senNotification");
                         sendNotification(csvFile, "Delimited", sectionName, packetIndex, eof, file, oClient);
-                        System.out.print("**** After senNotification");
+                        // System.out.print("**** After senNotification");
                         file = new ArrayList<Map<String, String>>();
                         if (SleepBetweenPackets > 0) {
                             try {

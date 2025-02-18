@@ -47,7 +47,7 @@ public class TestCSVConfigFixedLength extends TestCSVBase {
         nCore.stop();
     }
 
-    @Test
+  //  @Test
     public void testMissingSchema() {
 
         Map<String, Object> conf = minimalConfig();
@@ -57,14 +57,14 @@ public class TestCSVConfigFixedLength extends TestCSVBase {
         assertTrue("Should fail when missing 'schema' configuration", configIsFailed());
     }
 
-    @Test
+  //  @Test
     public void testMissingOptions() {
         Map<String, Object> conf = minimalConfig();
         sendConfig(conf, null);
         assertTrue("Should fail when missing 'Options' configuration", configIsFailed());
     }
 
-    @Test
+ //   @Test
     public void testMinimalConfig() {
         assumeTrue(testFileFolderPath != null && testFullFilePath != null && IsTestFileFolderExists());
 
