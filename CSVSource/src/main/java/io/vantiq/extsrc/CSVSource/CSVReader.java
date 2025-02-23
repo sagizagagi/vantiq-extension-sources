@@ -473,12 +473,19 @@ public class CSVReader {
                             lineValues.put(currField, t);
                             schemaFieldIndex++;
                         } else if (processNullValues) {
+                            String currField = setFieldNameByIndex(schemaFieldIndex, schemaEntryList);
+                            lineValues.put(currField, "");
                             schemaFieldIndex++;
+
                         }
                     }
 
-                    // lineValues.forEach((key, value) -> System.out.printf("%s = %s%n", key,
-                    // value));
+                    if (schemaFieldIndex < schema.size() && processNullValues) {
+                        for (int i = schemaFieldIndex; i < schema.size(); i++) {
+                            String currField = setFieldNameByIndex(i, schemaEntryList);
+                            lineValues.put(currField, "");
+                        }
+                    }
 
                     file.add(lineValues);
                     numOfRecords++;
