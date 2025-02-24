@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+  <Appenders>
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+    </Console>
+    <RollingFile
+      name="RollingFile"
+      fileName="c:/vantiq/logs/JdbcSource.log"
+      filePattern="c:/vantiq/logs/archive/JdbcSource.%d{dd-MMM}.log.zip"
+      append="true">
+      <PatternLayout>
+          <Pattern>%d{yyyy-MM-dd HH:mm:ss} %-5p %m%n</Pattern>
+      </PatternLayout>
+      <Policies>
+          <SizeBasedTriggeringPolicy size="20 MB"/>
+          <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+      </Policies>
+      <DefaultRolloverStrategy max="30"/>
+    </RollingFile>
+  </Appenders>
+  <Loggers>
+    <Logger name="io.vantiq.extsrc.CSVSource" level="debug"/>
+    <Logger name="io.vantiq.extjsdk" level="debug"/>
+    <Root level="error">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Root>
+  </Loggers>
+</Configuration>

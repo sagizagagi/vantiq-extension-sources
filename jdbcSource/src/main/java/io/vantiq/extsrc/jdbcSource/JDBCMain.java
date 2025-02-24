@@ -9,12 +9,8 @@
 package io.vantiq.extsrc.jdbcSource;
 
 import io.vantiq.extjsdk.Utils;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
 import org.slf4j.Logger;
