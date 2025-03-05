@@ -131,7 +131,7 @@ import io.vantiq.extsrc.CSVSource.exception.VantiqIOException;
  * and ability to write, append and delete text files to disk .
  */
 public class CSV {
-    final static String CSV_VERSION = "1.0.0.26";
+    final static String CSV_VERSION = "1.0.0.27";
 
     Instant start = Instant.now();
     Instant LastTimerTriggered = Instant.now();
@@ -827,6 +827,7 @@ public class CSV {
                     }
 
                     bw.close();
+                    log.info("File {} created, #rows {}", fullFilePath, content.size());
                     rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_SUCCESS_FILE_CREATED_MESSAGE, file.toString());
                 }
 
@@ -988,7 +989,9 @@ public class CSV {
                         bw.append(line);
                         bw.newLine();
                     }
-
+                    bw.flush();
+                    bw.close();
+                    log.info("File {} appended, #rows {}", fullFilePath, content.size());
                     rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_SUCCESS_FILE_APPENDED_MESSAGE, file.toString());
                 } finally {
 
