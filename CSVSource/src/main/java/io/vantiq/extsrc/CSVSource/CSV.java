@@ -828,7 +828,8 @@ public class CSV {
 
                     bw.close();
                     log.info("File {} created, #rows {}", fullFilePath, content.size());
-                    rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_SUCCESS_FILE_CREATED_MESSAGE, file.toString());
+                    rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_SUCCESS_FILE_CREATED_MESSAGE,
+                            String.format("%s #lines %d", file.toString(), content.size()));
                 }
 
             }
@@ -992,7 +993,8 @@ public class CSV {
                     bw.flush();
                     bw.close();
                     log.info("File {} appended, #rows {}", fullFilePath, content.size());
-                    rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_SUCCESS_FILE_APPENDED_MESSAGE, file.toString());
+                    rsArray = CreateResponse(CSV_SUCCESS_CODE, CSV_SUCCESS_FILE_APPENDED_MESSAGE,
+                            String.format("%s #lines %d", file.toString(), content.size()));
                 } finally {
 
                 }
